@@ -1,100 +1,31 @@
 use std::collections::HashMap;
 
-use futures::future::BoxFuture;
-use tokio::process::Command;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::time::{sleep, Duration};
 
+use crate::block::Block;
+
+mod block;
 mod xorg;
-
-type Output = Result<Option<String>, anyhow::Error>;
-type Module = fn() -> BoxFuture<'static, Output>;
-
-async fn clock() -> Output {
-    Ok(Some(format!(
-        "🕛 {}",
-        chrono::offset::Local::now().format("%m/%d/%Y %I:%M %p")
-    )))
-}
-
-async fn volume() -> Output {
-    let v = String::from_utf8(Command::new("volume").output().await?.stdout)?
-        .trim()
-        .to_string();
-    if v.is_empty() {
-        Ok(None)
-    } else {
-        Ok(Some(v))
-    }
-}
-
-async fn internet() -> Output {
-    let i = String::from_utf8(Command::new("internet").output().await?.stdout)?
-        .trim()
-        .to_string();
-    if i.is_empty() {
-        Ok(None)
-    } else {
-        Ok(Some(i))
-    }
-}
-
-async fn weather() -> Output {
-    let w = String::from_utf8(Command::new("weather").output().await?.stdout)?
-        .trim()
-        .to_string();
-    if w.is_empty() {
-        Ok(None)
-    } else {
-        Ok(Some(w))
-    }
-}
-
-async fn mailbox() -> Output {
-    let mut c = 0;
-    for _ in glob::glob(&format!(
-        "{}/.local/share/mail/*/INBOX/new/*",
-        std::env::var("HOME")?
-    ))? {
-        c += 1;
-    }
-
-    if c == 0 {
-        Ok(None)
-    } else {
-        Ok(Some(format!("📬 {c}")))
-    }
-}
-
-async fn news() -> Output {
-    let news = String::from_utf8(Command::new("news").output().await?.stdout)?
-        .trim()
-        .to_string();
-    if news.is_empty() {
-        Ok(None)
-    } else {
-        Ok(Some(format!("📰 {news}")))
-    }
-}
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), anyhow::Error> {
     let window = xorg::Window::new();
     let mut signal_recv = signal(SignalKind::user_defined1())?;
-    let modules: Vec<Module> = vec![
-        || Box::pin(news()),
-        || Box::pin(mailbox()),
-        || Box::pin(weather()),
-        || Box::pin(internet()),
-        || Box::pin(volume()),
-        || Box::pin(clock()),
+    let blocks: Vec<Box<dyn Block>> = vec![
+        block::News::new(),
+        block::Mailbox::new()?,
+        block::Weather::new(),
+        block::Internet::new(),
+        block::Volume::new(),
+        block::Clock::new(),
     ];
     let mut prev_state: HashMap<usize, String> = HashMap::new();
 
     loop {
         let mut out: Vec<String> = vec![];
-        for (i, m) in modules.iter().enumerate() {
-            match m().await {
+        for (i, m) in blocks.iter().enumerate() {
+            match m.run().await {
                 Ok(Some(v)) => {
                     out.push(v.clone());
                     prev_state.insert(i, v);
