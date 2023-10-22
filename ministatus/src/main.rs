@@ -51,13 +51,18 @@ async fn weather() -> Output {
 }
 
 async fn mailbox() -> Output {
-    let mb = String::from_utf8(Command::new("mailbox").output().await?.stdout)?
-        .trim()
-        .to_string();
-    if mb.is_empty() {
+    let mut c = 0;
+    for _ in glob::glob(&format!(
+        "{}/.local/share/mail/*/INBOX/new/*",
+        std::env::var("HOME")?
+    ))? {
+        c += 1;
+    }
+
+    if c == 0 {
         Ok(None)
     } else {
-        Ok(Some(format!("📬 {mb}")))
+        Ok(Some(format!("📬 {c}")))
     }
 }
 
