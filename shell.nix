@@ -16,6 +16,9 @@ in pkgs.mkShell {
     rustPackages.clippy
     rustPackages.rustfmt
   ];
+  buildInputs = with pkgs; [
+    xorg.libX11
+  ];
 
   RUST_SRC_PATH = "${rustPackages.rustPlatform.rustLibSrc}";
 }

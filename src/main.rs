@@ -5,6 +5,8 @@ use tokio::process::Command;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::time::{sleep, Duration};
 
+mod xorg;
+
 type Module = fn() -> BoxFuture<'static, Result<String, anyhow::Error>>;
 
 async fn clock() -> Result<String, anyhow::Error> {
@@ -53,6 +55,7 @@ async fn news() -> Result<String, anyhow::Error> {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), anyhow::Error> {
+    let window = xorg::Window::new();
     let mut signal_recv = signal(SignalKind::user_defined1())?;
     let modules: Vec<Module> = vec![
         || Box::pin(mailbox()),
@@ -77,8 +80,7 @@ async fn main() -> Result<(), anyhow::Error> {
             }
         }
 
-        println!("{}", out.join(" | "));
-
+        let _ = window.set_title(&out.join(" | "));
         tokio::select! {
             _ = signal_recv.recv() => (),
             _ = sleep(Duration::from_secs(15)) => (),
