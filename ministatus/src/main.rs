@@ -43,14 +43,14 @@ async fn mailbox() -> Result<String, anyhow::Error> {
     let mb = String::from_utf8(Command::new("mailbox").output().await?.stdout)?
         .trim()
         .to_string();
-    Ok(format!("📰 {mb}"))
+    Ok(format!("📬 {mb}"))
 }
 
 async fn news() -> Result<String, anyhow::Error> {
     let news = String::from_utf8(Command::new("news").output().await?.stdout)?
         .trim()
         .to_string();
-    Ok(format!("📬 {news}"))
+    Ok(format!("📰 {news}"))
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -58,8 +58,8 @@ async fn main() -> Result<(), anyhow::Error> {
     let window = xorg::Window::new();
     let mut signal_recv = signal(SignalKind::user_defined1())?;
     let modules: Vec<Module> = vec![
-        || Box::pin(mailbox()),
         || Box::pin(news()),
+        || Box::pin(mailbox()),
         || Box::pin(weather()),
         || Box::pin(internet()),
         || Box::pin(volume()),
