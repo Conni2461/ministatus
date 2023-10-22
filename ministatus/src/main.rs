@@ -7,50 +7,69 @@ use tokio::time::{sleep, Duration};
 
 mod xorg;
 
-type Module = fn() -> BoxFuture<'static, Result<String, anyhow::Error>>;
+type Output = Result<Option<String>, anyhow::Error>;
+type Module = fn() -> BoxFuture<'static, Output>;
 
-async fn clock() -> Result<String, anyhow::Error> {
-    Ok(format!(
+async fn clock() -> Output {
+    Ok(Some(format!(
         "🕛 {}",
         chrono::offset::Local::now().format("%m/%d/%Y %I:%M %p")
-    ))
+    )))
 }
 
-async fn volume() -> Result<String, anyhow::Error> {
-    Ok(
-        String::from_utf8(Command::new("volume").output().await?.stdout)?
-            .trim()
-            .to_string(),
-    )
+async fn volume() -> Output {
+    let v = String::from_utf8(Command::new("volume").output().await?.stdout)?
+        .trim()
+        .to_string();
+    if v.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(v))
+    }
 }
 
-async fn internet() -> Result<String, anyhow::Error> {
-    Ok(
-        String::from_utf8(Command::new("internet").output().await?.stdout)?
-            .trim()
-            .to_string(),
-    )
+async fn internet() -> Output {
+    let i = String::from_utf8(Command::new("internet").output().await?.stdout)?
+        .trim()
+        .to_string();
+    if i.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(i))
+    }
 }
 
-async fn weather() -> Result<String, anyhow::Error> {
+async fn weather() -> Output {
     let w = String::from_utf8(Command::new("weather").output().await?.stdout)?
         .trim()
         .to_string();
-    Ok(w)
+    if w.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(w))
+    }
 }
 
-async fn mailbox() -> Result<String, anyhow::Error> {
+async fn mailbox() -> Output {
     let mb = String::from_utf8(Command::new("mailbox").output().await?.stdout)?
         .trim()
         .to_string();
-    Ok(format!("📬 {mb}"))
+    if mb.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(format!("📬 {mb}")))
+    }
 }
 
-async fn news() -> Result<String, anyhow::Error> {
+async fn news() -> Output {
     let news = String::from_utf8(Command::new("news").output().await?.stdout)?
         .trim()
         .to_string();
-    Ok(format!("📰 {news}"))
+    if news.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(format!("📰 {news}")))
+    }
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -70,12 +89,15 @@ async fn main() -> Result<(), anyhow::Error> {
     loop {
         let mut out: Vec<String> = vec![];
         for (i, m) in modules.iter().enumerate() {
-            if let Ok(v) = m().await {
-                out.push(v.clone());
-                prev_state.insert(i, v);
-            } else {
-                if let Some(v) = prev_state.get(&i) {
+            match m().await {
+                Ok(Some(v)) => {
                     out.push(v.clone());
+                    prev_state.insert(i, v);
+                }
+                _ => {
+                    if let Some(v) = prev_state.get(&i) {
+                        out.push(v.clone());
+                    }
                 }
             }
         }
