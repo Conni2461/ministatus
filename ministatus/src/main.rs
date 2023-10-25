@@ -17,7 +17,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let blocks: Vec<Box<dyn Block>> = vec![
         block::News::new(&home)?,
         block::Mailbox::new(&home),
-        block::Weather::new(),
+        block::Weather::new().await?,
         block::Internet::new(),
         block::Volume::new()?,
         block::Clock::new(),

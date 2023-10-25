@@ -43,7 +43,7 @@ impl super::Block for Volume {
         let vol = self
             .regex
             .find(&volume)
-            .and_then(|m| m.as_str()[..2].parse::<i32>().ok());
+            .and_then(|m| m.as_str()[..m.len() - 1].parse::<i32>().ok());
         if let Some(vol) = vol {
             let symbol = if vol > 70 {
                 "🔊"

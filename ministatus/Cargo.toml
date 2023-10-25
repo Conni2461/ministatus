@@ -20,3 +20,6 @@ sqlite = "0.31"
 
 # volume
 regex = "1"
+
+# weather
+reqwest = "0.11"
