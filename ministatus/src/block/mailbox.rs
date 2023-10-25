@@ -3,10 +3,10 @@ pub struct Mailbox {
 }
 
 impl Mailbox {
-    pub fn new() -> Result<Box<Self>, anyhow::Error> {
-        Ok(Box::new(Self {
-            pattern: format!("{}/.local/share/mail/*/INBOX/new/*", std::env::var("HOME")?),
-        }))
+    pub fn new(home: &str) -> Box<Self> {
+        Box::new(Self {
+            pattern: format!("{}/.local/share/mail/*/INBOX/new/*", home),
+        })
     }
 }
 

@@ -12,9 +12,11 @@ mod xorg;
 async fn main() -> Result<(), anyhow::Error> {
     let window = xorg::Window::new();
     let mut signal_recv = signal(SignalKind::user_defined1())?;
+    let home = std::env::var("HOME")?;
+
     let blocks: Vec<Box<dyn Block>> = vec![
-        block::News::new(),
-        block::Mailbox::new()?,
+        block::News::new(&home)?,
+        block::Mailbox::new(&home),
         block::Weather::new(),
         block::Internet::new(),
         block::Volume::new(),
