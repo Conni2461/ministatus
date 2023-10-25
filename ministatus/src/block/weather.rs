@@ -5,6 +5,7 @@ use std::sync::{Arc, RwLock};
 const TIMEOUT_TIME: i32 = 1440;
 
 pub struct Weather {
+    agent: ureq::Agent,
     data: Arc<RwLock<Vec<String>>>,
     rain_regex: regex::Regex,
     temp_regex: regex::Regex,
@@ -12,20 +13,26 @@ pub struct Weather {
     timeout: AtomicI32,
 }
 
-fn get_weather_data() -> Result<Vec<String>, anyhow::Error> {
-    let o = reqwest::blocking::Client::new()
+fn get_weather_data(agent: &ureq::Agent) -> Result<Vec<String>, anyhow::Error> {
+    let o = agent
         .get("https://wttr.in")
-        .header("Accept", "text/plain")
-        .header("User-Agent", "curl/8.1.1")
-        .send()?
-        .text()?;
+        .set("Accept", "text/plain")
+        .set("User-Agent", "curl/8.1.1")
+        .call()?
+        .into_string()?;
     Ok(o.lines().map(ToOwned::to_owned).collect::<Vec<String>>())
 }
 
 impl Weather {
     pub fn new() -> Result<Box<Self>, anyhow::Error> {
+        let tls_connector = Arc::new(native_tls::TlsConnector::new()?);
+        let agent = ureq::builder().tls_connector(tls_connector.clone()).build();
+
+        let data = Arc::new(RwLock::new(get_weather_data(&agent).unwrap_or_default()));
+
         Ok(Box::new(Self {
-            data: Arc::new(RwLock::new(get_weather_data().unwrap_or_default())),
+            agent,
+            data,
             rain_regex: regex::Regex::new(r"(\d+%)")?,
             temp_regex: regex::Regex::new(r"(\+\d+)")?,
 
@@ -39,8 +46,9 @@ impl Weather {
             self.timeout.store(TIMEOUT_TIME, Ordering::Relaxed);
 
             let d = self.data.clone();
+            let agent = self.agent.clone();
             std::thread::spawn(move || {
-                let new = get_weather_data().unwrap_or_default();
+                let new = get_weather_data(&agent).unwrap_or_default();
                 if new.is_empty() {
                     return;
                 }

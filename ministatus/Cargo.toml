@@ -20,7 +20,8 @@ sqlite = "0.31"
 regex = "1"
 
 # weather
-reqwest = { version = "0.11", features = ["blocking"] }
+ureq = { version = "2", default-features = false, features = ["native-tls"] }
+native-tls = "0.2"
 
 # pulse
 libpulse-binding = "2"
