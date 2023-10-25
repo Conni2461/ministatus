@@ -26,7 +26,7 @@ fn get_weather_data(agent: &ureq::Agent) -> Result<Vec<String>, anyhow::Error> {
 impl Weather {
     pub fn new() -> Result<Box<Self>, anyhow::Error> {
         let tls_connector = Arc::new(native_tls::TlsConnector::new()?);
-        let agent = ureq::builder().tls_connector(tls_connector.clone()).build();
+        let agent = ureq::builder().tls_connector(tls_connector).build();
 
         let data = Arc::new(RwLock::new(get_weather_data(&agent).unwrap_or_default()));
 

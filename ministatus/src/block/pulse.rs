@@ -128,10 +128,9 @@ impl Pulse {
         let tx2 = tx.clone();
         introspect.get_sink_info_list(move |res| tx_sink(&tx2, res));
 
-        let tx2 = tx.clone();
         ctx.subscribe(InterestMaskSet::SERVER | InterestMaskSet::SINK, |_| ());
         ctx.set_subscribe_callback(Some(Box::new(move |fac, _, index| {
-            let tx = tx2.clone();
+            let tx = tx.clone();
 
             match fac {
                 // TODO
@@ -150,13 +149,10 @@ impl Pulse {
         let state = self.state.clone();
         std::thread::spawn(move || loop {
             let state = state.clone();
-            match rx.recv() {
-                Ok(o) => {
-                    if let Ok(mut w) = state.write() {
-                        *w = o;
-                    }
+            if let Ok(o) = rx.recv() {
+                if let Ok(mut w) = state.write() {
+                    *w = o;
                 }
-                Err(_) => (),
             }
         });
     }

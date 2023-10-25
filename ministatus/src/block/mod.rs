@@ -4,7 +4,6 @@ mod internet;
 mod mailbox;
 mod news;
 mod pulse;
-mod volume;
 mod weather;
 
 pub use battery::Battery;
@@ -13,7 +12,6 @@ pub use internet::Internet;
 pub use mailbox::Mailbox;
 pub use news::News;
 pub use pulse::Pulse;
-pub use volume::Volume;
 pub use weather::Weather;
 
 pub trait Block {
