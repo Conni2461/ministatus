@@ -33,11 +33,10 @@ impl super::Block for Battery {
 
         let mut out: Vec<String> = vec![];
         for bat in &self.batteries {
-            let cap = std::fs::read_to_string(bat.join("capacity"))?
-                .trim()
-                .replace('$', "")
-                .parse::<i32>();
-            let Ok(cap) = cap else {
+            let cap = std::fs::read_to_string(bat.join("capacity"))
+                .ok()
+                .and_then(|v| v.trim().replace('$', "").parse::<i32>().ok());
+            let Some(cap) = cap else {
                 continue
             };
             let sep = if cap < 25 { "❗" } else { " " };
