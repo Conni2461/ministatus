@@ -47,7 +47,7 @@ async fn main() -> Result<(), anyhow::Error> {
         let _ = window.set_title(&out.join(" | "));
         tokio::select! {
             _ = signal_recv.recv() => (),
-            _ = sleep(Duration::from_secs(15)) => (),
+            _ = sleep(Duration::from_secs(10)) => (),
         }
     }
 }
