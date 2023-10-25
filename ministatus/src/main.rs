@@ -25,6 +25,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut prev_state: HashMap<usize, String> = HashMap::new();
 
     loop {
+        let now = std::time::Instant::now();
         let mut out: Vec<String> = vec![];
         for (i, m) in blocks.iter().enumerate() {
             match m.run().await {
@@ -41,6 +42,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 }
             }
         }
+        eprintln!("Elapsed: {:.2?}", now.elapsed());
 
         let _ = window.set_title(&out.join(" | "));
         tokio::select! {
