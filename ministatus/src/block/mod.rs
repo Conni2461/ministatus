@@ -16,3 +16,8 @@ pub use weather::Weather;
 pub trait Block {
     async fn run(&self) -> Result<Option<String>, anyhow::Error>;
 }
+
+fn file_as_vec_str(p: &str) -> Result<Vec<String>, anyhow::Error> {
+    let contents = std::fs::read_to_string(p)?;
+    Ok(contents.split('\n').map(ToOwned::to_owned).collect())
+}
