@@ -23,6 +23,7 @@ async fn main() -> Result<(), anyhow::Error> {
         block::Clock::new(),
     ];
     let mut prev_state: HashMap<usize, String> = HashMap::new();
+    let debug = std::env::var("DEBUG").map(|v| v == "1").unwrap_or_default();
 
     loop {
         let now = std::time::Instant::now();
@@ -44,7 +45,11 @@ async fn main() -> Result<(), anyhow::Error> {
         }
         eprintln!("Elapsed: {:.2?}", now.elapsed());
 
-        let _ = window.set_title(&out.join(" | "));
+        if !debug {
+            let _ = window.set_title(&out.join(" | "));
+        } else {
+            println!("{}", &out.join(" | "));
+        }
         tokio::select! {
             _ = signal_recv.recv() => (),
             _ = sleep(Duration::from_secs(10)) => (),
