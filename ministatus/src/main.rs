@@ -19,6 +19,7 @@ async fn main() -> Result<(), anyhow::Error> {
         block::Mailbox::new(&home),
         block::Weather::new().await?,
         block::Internet::new(),
+        block::Battery::new(),
         block::Volume::new()?,
         block::Clock::new(),
     ];

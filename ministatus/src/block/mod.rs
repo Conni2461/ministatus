@@ -1,3 +1,4 @@
+mod battery;
 mod clock;
 mod internet;
 mod mailbox;
@@ -5,6 +6,7 @@ mod news;
 mod volume;
 mod weather;
 
+pub use battery::Battery;
 pub use clock::Clock;
 pub use internet::Internet;
 pub use mailbox::Mailbox;
