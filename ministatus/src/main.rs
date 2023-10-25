@@ -6,6 +6,7 @@ use tokio::time::{sleep, Duration};
 use crate::block::Block;
 
 mod block;
+mod shared;
 mod xorg;
 
 #[tokio::main(flavor = "current_thread")]
@@ -32,6 +33,8 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut prev_state: HashMap<usize, String> = HashMap::new();
     let debug = std::env::var("DEBUG").map(|v| v == "1").unwrap_or_default();
 
+    let pulse = block::Pulse::new()?;
+
     loop {
         let now = std::time::Instant::now();
         let mut out: Vec<String> = vec![];
@@ -50,6 +53,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 }
             }
         }
+        println!("{:?}", pulse.run());
         eprintln!("Elapsed: {:.2?}", now.elapsed());
 
         if !debug {

@@ -20,6 +20,7 @@ in pkgs.mkShell {
     openssl
     xorg.libX11
     sqlite
+    libpulseaudio
   ];
 
   RUST_SRC_PATH = "${rustPackages.rustPlatform.rustLibSrc}";
