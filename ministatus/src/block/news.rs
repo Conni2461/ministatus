@@ -7,12 +7,14 @@ pub struct News {
 
 impl News {
     pub fn new(home: &str) -> Result<Box<Self>, anyhow::Error> {
+        let dbfile = format!("{}/.local/share/newsboat/cache.db", home);
+        if !std::path::Path::new(&dbfile).exists() {
+            return Err(anyhow::anyhow!("file does not exist"));
+        }
+
         Ok(Box::new(Self {
             home: home.to_owned(),
-            conn: sqlite::Connection::open_with_full_mutex(format!(
-                "{}/.local/share/newsboat/cache.db",
-                home
-            ))?,
+            conn: sqlite::Connection::open_with_full_mutex(dbfile)?,
         }))
     }
 }

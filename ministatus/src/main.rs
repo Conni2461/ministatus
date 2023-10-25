@@ -14,15 +14,21 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut signal_recv = signal(SignalKind::user_defined1())?;
     let home = std::env::var("HOME")?;
 
-    let blocks: Vec<Box<dyn Block>> = vec![
-        block::News::new(&home)?,
-        block::Mailbox::new(&home),
-        block::Weather::new().await?,
-        block::Internet::new(),
-        block::Battery::new(),
-        block::Volume::new()?,
-        block::Clock::new(),
-    ];
+    let mut blocks: Vec<Box<dyn Block>> = Vec::new();
+    match block::News::new(&home) {
+        Ok(v) => blocks.push(v),
+        Err(e) => eprintln!("news disabled because of {e}"),
+    }
+    match block::Mailbox::new(&home) {
+        Ok(v) => blocks.push(v),
+        Err(e) => eprintln!("mailbox disabled because of {e}"),
+    }
+    blocks.push(block::Weather::new().await?);
+    blocks.push(block::Internet::new());
+    blocks.push(block::Battery::new());
+    blocks.push(block::Volume::new()?);
+    blocks.push(block::Clock::new());
+
     let mut prev_state: HashMap<usize, String> = HashMap::new();
     let debug = std::env::var("DEBUG").map(|v| v == "1").unwrap_or_default();
 
