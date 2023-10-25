@@ -19,9 +19,8 @@ impl News {
     }
 }
 
-#[async_trait::async_trait]
 impl super::Block for News {
-    async fn run(&self) -> Result<Option<String>, anyhow::Error> {
+    fn run(&self) -> Result<Option<String>, anyhow::Error> {
         if std::path::Path::new(&format!("{}/.config/newsboat/.update", self.home)).exists() {
             return Ok(Some("📰 🔃".into()));
         }

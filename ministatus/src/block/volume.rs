@@ -1,4 +1,4 @@
-use tokio::process::Command;
+use std::process::Command;
 
 pub struct Volume {
     regex: regex::Regex,
@@ -12,15 +12,13 @@ impl Volume {
     }
 }
 
-#[async_trait::async_trait]
 impl super::Block for Volume {
-    async fn run(&self) -> Result<Option<String>, anyhow::Error> {
+    fn run(&self) -> Result<Option<String>, anyhow::Error> {
         let mute = String::from_utf8(
             Command::new("pactl")
                 .arg("get-sink-mute")
                 .arg("@DEFAULT_SINK@")
-                .output()
-                .await?
+                .output()?
                 .stdout,
         )?
         .trim()
@@ -36,8 +34,7 @@ impl super::Block for Volume {
             Command::new("pactl")
                 .arg("get-sink-volume")
                 .arg("@DEFAULT_SINK@")
-                .output()
-                .await?
+                .output()?
                 .stdout,
         )?;
         let vol = self

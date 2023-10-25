@@ -24,9 +24,8 @@ impl Battery {
     }
 }
 
-#[async_trait::async_trait]
 impl super::Block for Battery {
-    async fn run(&self) -> Result<Option<String>, anyhow::Error> {
+    fn run(&self) -> Result<Option<String>, anyhow::Error> {
         if self.batteries.is_empty() {
             return Ok(None);
         }

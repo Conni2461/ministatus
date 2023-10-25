@@ -1,7 +1,5 @@
 use std::sync::atomic::{AtomicI32, Ordering};
-use std::sync::Arc;
-
-use tokio::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 // every 4h (timeout 10s)
 const TIMEOUT_TIME: i32 = 1440;
@@ -14,22 +12,20 @@ pub struct Weather {
     timeout: AtomicI32,
 }
 
-async fn get_weather_data() -> Result<Vec<String>, anyhow::Error> {
-    let o = reqwest::Client::new()
+fn get_weather_data() -> Result<Vec<String>, anyhow::Error> {
+    let o = reqwest::blocking::Client::new()
         .get("https://wttr.in")
         .header("Accept", "text/plain")
         .header("User-Agent", "curl/8.1.1")
-        .send()
-        .await?
-        .text()
-        .await?;
+        .send()?
+        .text()?;
     Ok(o.lines().map(ToOwned::to_owned).collect::<Vec<String>>())
 }
 
 impl Weather {
-    pub async fn new() -> Result<Box<Self>, anyhow::Error> {
+    pub fn new() -> Result<Box<Self>, anyhow::Error> {
         Ok(Box::new(Self {
-            data: Arc::new(RwLock::new(get_weather_data().await.unwrap_or_default())),
+            data: Arc::new(RwLock::new(get_weather_data().unwrap_or_default())),
             rain_regex: regex::Regex::new(r"(\d+%)")?,
             temp_regex: regex::Regex::new(r"(\+\d+)")?,
 
@@ -43,24 +39,23 @@ impl Weather {
             self.timeout.store(TIMEOUT_TIME, Ordering::Relaxed);
 
             let d = self.data.clone();
-            tokio::spawn(async move {
-                let new = get_weather_data().await.unwrap_or_default();
+            std::thread::spawn(move || {
+                let new = get_weather_data().unwrap_or_default();
                 if new.is_empty() {
                     return;
                 }
 
-                let mut w = d.write().await;
+                let mut w = d.write().unwrap();
                 *w = new;
             });
         }
     }
 }
 
-#[async_trait::async_trait]
 impl super::Block for Weather {
-    async fn run(&self) -> Result<Option<String>, anyhow::Error> {
+    fn run(&self) -> Result<Option<String>, anyhow::Error> {
         let (r, h) = if let (Some(r), Some(h)) = {
-            let d = self.data.read().await;
+            let d = self.data.read().unwrap();
             (
                 d.get(15).map(ToOwned::to_owned),
                 d.get(12).map(ToOwned::to_owned),

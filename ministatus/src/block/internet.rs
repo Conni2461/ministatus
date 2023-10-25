@@ -6,9 +6,8 @@ impl Internet {
     }
 }
 
-#[async_trait::async_trait]
 impl super::Block for Internet {
-    async fn run(&self) -> Result<Option<String>, anyhow::Error> {
+    fn run(&self) -> Result<Option<String>, anyhow::Error> {
         let tuple = super::file_as_vec_str("/proc/net/wireless")?
             .into_iter()
             .find(|s| s.starts_with('w'))

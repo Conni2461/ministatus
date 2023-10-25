@@ -6,9 +6,8 @@ impl Clock {
     }
 }
 
-#[async_trait::async_trait]
 impl super::Block for Clock {
-    async fn run(&self) -> Result<Option<String>, anyhow::Error> {
+    fn run(&self) -> Result<Option<String>, anyhow::Error> {
         Ok(Some(format!(
             "🕛 {}",
             chrono::offset::Local::now().format("(KW%V) %m/%d/%Y %I:%M %p")

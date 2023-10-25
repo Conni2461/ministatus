@@ -14,11 +14,6 @@ use libpulse_binding::{
 
 use crate::shared::Shared;
 
-struct Channel<T> {
-    tx: mpsc::Sender<T>,
-    pub rx: mpsc::Receiver<T>,
-}
-
 #[derive(Debug)]
 struct TxState {
     pub volume: i32,
@@ -55,12 +50,12 @@ impl Pulse {
                 mute: false,
             })),
         };
-        s.connect();
+        s.connect()?;
 
         Ok(Box::new(s))
     }
 
-    fn connect(&self) {
+    fn connect(&self) -> Result<(), anyhow::Error> {
         let mut mainloop = self.mainloop.borrow_mut();
         let mut ctx = self.context.borrow_mut();
 
@@ -76,10 +71,10 @@ impl Pulse {
             }
         })));
 
-        ctx.connect(None, FlagSet::NOFLAGS, None).unwrap();
+        ctx.connect(None, FlagSet::NOFLAGS, None)?;
 
         mainloop.lock();
-        mainloop.start().unwrap();
+        mainloop.start()?;
 
         loop {
             match ctx.get_state() {
@@ -104,6 +99,8 @@ impl Pulse {
         drop(mainloop);
 
         self.subscribe();
+
+        Ok(())
     }
 
     fn subscribe(&self) {
@@ -179,8 +176,8 @@ impl Drop for Pulse {
     }
 }
 
-impl Pulse {
-    pub fn run(&self) -> Result<Option<String>, anyhow::Error> {
+impl super::Block for Pulse {
+    fn run(&self) -> Result<Option<String>, anyhow::Error> {
         let r = self.state.read().unwrap();
         if r.mute {
             return Ok(Some("🔇".into()));
