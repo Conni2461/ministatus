@@ -1,23 +1,60 @@
 use tokio::process::Command;
 
-pub struct Volume {}
+pub struct Volume {
+    regex: regex::Regex,
+}
 
 impl Volume {
-    pub fn new() -> Box<Self> {
-        Box::new(Self {})
+    pub fn new() -> Result<Box<Self>, anyhow::Error> {
+        Ok(Box::new(Self {
+            regex: regex::Regex::new(r"(\d+%)")?,
+        }))
     }
 }
 
 #[async_trait::async_trait]
 impl super::Block for Volume {
     async fn run(&self) -> Result<Option<String>, anyhow::Error> {
-        let v = String::from_utf8(Command::new("volume").output().await?.stdout)?
-            .trim()
-            .to_string();
-        if v.is_empty() {
-            Ok(None)
+        let mute = String::from_utf8(
+            Command::new("pactl")
+                .arg("get-sink-mute")
+                .arg("@DEFAULT_SINK@")
+                .output()
+                .await?
+                .stdout,
+        )?
+        .trim()
+        .strip_prefix("Mute: ")
+        .map(|v| v == "yes")
+        .unwrap_or_default();
+
+        if mute {
+            return Ok(Some("🔇".into()));
+        }
+
+        let volume = String::from_utf8(
+            Command::new("pactl")
+                .arg("get-sink-volume")
+                .arg("@DEFAULT_SINK@")
+                .output()
+                .await?
+                .stdout,
+        )?;
+        let vol = self
+            .regex
+            .find(&volume)
+            .and_then(|m| m.as_str()[..2].parse::<i32>().ok());
+        if let Some(vol) = vol {
+            let symbol = if vol > 70 {
+                "🔊"
+            } else if vol > 30 {
+                "🔉"
+            } else {
+                "🔈"
+            };
+            Ok(Some(format!("{symbol} {vol}%")))
         } else {
-            Ok(Some(v))
+            Ok(None)
         }
     }
 }

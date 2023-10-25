@@ -19,7 +19,7 @@ async fn main() -> Result<(), anyhow::Error> {
         block::Mailbox::new(&home),
         block::Weather::new(),
         block::Internet::new(),
-        block::Volume::new(),
+        block::Volume::new()?,
         block::Clock::new(),
     ];
     let mut prev_state: HashMap<usize, String> = HashMap::new();
