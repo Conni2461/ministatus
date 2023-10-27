@@ -2,7 +2,7 @@ const STMT: &str = "SELECT Count(*) FROM rss_item WHERE unread = 1;";
 
 pub struct News {
     home: String,
-    conn: sqlite::ConnectionWithFullMutex,
+    conn: sqlite::Connection,
 }
 
 impl News {
@@ -14,7 +14,10 @@ impl News {
 
         Ok(Box::new(Self {
             home: home.to_owned(),
-            conn: sqlite::Connection::open_with_full_mutex(dbfile)?,
+            conn: sqlite::Connection::open_with_flags(
+                dbfile,
+                sqlite::OpenFlags::new().set_read_only(),
+            )?,
         }))
     }
 }
