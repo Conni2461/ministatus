@@ -6,19 +6,19 @@ pub struct News {
 }
 
 impl News {
-    pub fn new(home: &str) -> Result<Box<Self>, anyhow::Error> {
-        let dbfile = format!("{}/.local/share/newsboat/cache.db", home);
+    pub fn new(home: &str) -> Result<Self, anyhow::Error> {
+        let dbfile = format!("{home}/.local/share/newsboat/cache.db");
         if !std::path::Path::new(&dbfile).exists() {
             return Err(anyhow::anyhow!("file does not exist"));
         }
 
-        Ok(Box::new(Self {
+        Ok(Self {
             home: home.to_owned(),
             conn: sqlite::Connection::open_with_flags(
                 dbfile,
                 sqlite::OpenFlags::new().set_read_only(),
             )?,
-        }))
+        })
     }
 }
 

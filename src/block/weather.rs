@@ -39,14 +39,10 @@ fn get_weather_data(
         return Ok(None);
     }
 
-    let (r, h) = if let (Some(r), Some(h)) = {
-        (
-            data.get(15).map(ToOwned::to_owned),
-            data.get(12).map(ToOwned::to_owned),
-        )
-    } {
-        (r, h)
-    } else {
+    let (Some(r), Some(h)) = (
+        data.get(15).map(ToOwned::to_owned),
+        data.get(12).map(ToOwned::to_owned),
+    ) else {
         return Ok(None);
     };
 
@@ -77,7 +73,7 @@ fn get_weather_data(
 }
 
 impl Weather {
-    pub fn new() -> Result<Box<Self>, anyhow::Error> {
+    pub fn new() -> Result<Self, anyhow::Error> {
         let tls_connector = Arc::new(native_tls::TlsConnector::new()?);
         let agent = ureq::builder().tls_connector(tls_connector).build();
 
@@ -87,14 +83,14 @@ impl Weather {
             get_weather_data(&agent, &rain_regex, &temp_regex).unwrap_or_default(),
         ));
 
-        Ok(Box::new(Self {
+        Ok(Self {
             agent,
             data,
             rain_regex,
             temp_regex,
 
             timeout: AtomicI32::new(TIMEOUT_TIME),
-        }))
+        })
     }
 
     fn refresh_data(&self) {

@@ -5,7 +5,7 @@ pub struct Battery {
 }
 
 impl Battery {
-    pub fn new() -> Box<Self> {
+    pub fn new() -> Self {
         let mut batteries = vec![];
         if let Ok(dir) = std::fs::read_dir("/sys/class/power_supply") {
             for ps in dir.flatten() {
@@ -20,7 +20,7 @@ impl Battery {
             }
         }
 
-        Box::new(Self { batteries })
+        Self { batteries }
     }
 }
 
@@ -50,7 +50,7 @@ impl super::Block for Battery {
                 "Full" => "⚡".into(),
                 o => o.to_string(),
             };
-            out.push(format!("{status}{sep}{cap}%"))
+            out.push(format!("{status}{sep}{cap}%"));
         }
 
         if out.is_empty() {

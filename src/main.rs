@@ -1,3 +1,6 @@
+#![deny(clippy::all)]
+#![deny(clippy::pedantic)]
+
 use std::collections::HashMap;
 
 use crate::block::Block;
@@ -12,18 +15,18 @@ fn main() -> Result<(), anyhow::Error> {
 
     let mut blocks: Vec<Box<dyn Block>> = Vec::new();
     match block::News::new(&home) {
-        Ok(v) => blocks.push(v),
+        Ok(v) => blocks.push(Box::new(v)),
         Err(e) => eprintln!("news disabled because of {e}"),
     }
     match block::Mailbox::new(&home) {
-        Ok(v) => blocks.push(v),
+        Ok(v) => blocks.push(Box::new(v)),
         Err(e) => eprintln!("mailbox disabled because of {e}"),
     }
-    blocks.push(block::Weather::new()?);
-    blocks.push(block::Internet::new());
-    blocks.push(block::Battery::new());
-    blocks.push(block::Pulse::new()?);
-    blocks.push(block::Clock::new());
+    blocks.push(Box::new(block::Weather::new()?));
+    blocks.push(Box::new(block::Internet::new()));
+    blocks.push(Box::new(block::Battery::new()));
+    blocks.push(Box::new(block::Pulse::new()?));
+    blocks.push(Box::new(block::Clock::new()));
 
     let mut prev_state: HashMap<usize, String> = HashMap::new();
     let debug = std::env::var("DEBUG").map(|v| v == "1").unwrap_or_default();
@@ -46,12 +49,12 @@ fn main() -> Result<(), anyhow::Error> {
                 }
             }
         }
+        let text = out.join(" | ");
         eprintln!("Elapsed: {:.2?}", now.elapsed());
-
-        if !debug {
-            let _ = window.set_title(&out.join(" | "));
-        } else {
-            println!("{}", &out.join(" | "));
+        if debug {
+            println!("{}", &text);
+        } else if let Err(e) = window.set_title(&text) {
+            eprintln!("failed to write to window: {e}");
         }
         std::thread::sleep(std::time::Duration::from_secs(1));
     }

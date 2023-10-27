@@ -16,7 +16,7 @@ use crate::shared::Shared;
 
 #[derive(Debug)]
 struct TxState {
-    pub volume: i32,
+    pub volume: u32,
     pub mute: bool,
 }
 
@@ -33,11 +33,11 @@ pub struct Pulse {
 }
 
 impl Pulse {
-    pub fn new() -> Result<Box<Self>, anyhow::Error> {
+    pub fn new() -> Result<Self, anyhow::Error> {
         let mut proplist = Proplist::new().ok_or(anyhow::anyhow!("Failed to init Proplist"))?;
         proplist
             .set_str(properties::APPLICATION_NAME, "ministatus")
-            .map_err(|_| anyhow::anyhow!("Failed to set APPLICATION_NAME"))?;
+            .map_err(|()| anyhow::anyhow!("Failed to set APPLICATION_NAME"))?;
 
         let mainloop =
             Shared::new(Mainloop::new().ok_or(anyhow::anyhow!("Failed to init Mainloop"))?);
@@ -57,7 +57,7 @@ impl Pulse {
         };
         s.connect()?;
 
-        Ok(Box::new(s))
+        Ok(s)
     }
 
     fn connect(&self) -> Result<(), anyhow::Error> {
@@ -116,13 +116,19 @@ impl Pulse {
             }
         }
 
-        fn tx_sink(tx: &mpsc::Sender<TxMessage>, result: ListResult<&SinkInfo<'_>>) {
+        fn tx_sink(tx: &mpsc::Sender<TxMessage>, result: &ListResult<&SinkInfo<'_>>) {
             if let ListResult::Item(item) = result {
                 if let Some(name) = &item.name {
+                    #[allow(
+                        clippy::cast_possible_truncation,
+                        clippy::cast_sign_loss,
+                        clippy::cast_precision_loss
+                    )]
+                    let volume =
+                        ((item.volume.avg().0 as f32 / Volume::NORMAL.0 as f32) * 100.) as u32;
                     tx.send(TxMessage::SinkValueChange {
                         val: TxState {
-                            volume: ((item.volume.avg().0 as f32 / Volume::NORMAL.0 as f32) * 100.)
-                                as i32,
+                            volume,
                             mute: item.mute,
                         },
                         name: name.to_string(),
@@ -140,7 +146,7 @@ impl Pulse {
         let (tx, rx) = mpsc::channel::<TxMessage>();
 
         let tx2 = tx.clone();
-        introspect.get_sink_info_by_name("@DEFAULT_SINK@", move |res| tx_sink(&tx2, res));
+        introspect.get_sink_info_by_name("@DEFAULT_SINK@", move |res| tx_sink(&tx2, &res));
 
         let tx2 = tx.clone();
         ctx.subscribe(InterestMaskSet::SERVER | InterestMaskSet::SINK, |_| ());
@@ -153,7 +159,7 @@ impl Pulse {
                         introspect.get_server_info(move |res| tx_server(&tx2, res));
                     }
                     Some(Facility::Sink) => {
-                        introspect.get_sink_info_by_index(index, move |res| tx_sink(&tx2, res));
+                        introspect.get_sink_info_by_index(index, move |res| tx_sink(&tx2, &res));
                     }
                     _ => (),
                 };
@@ -173,7 +179,7 @@ impl Pulse {
                         default_sink_name = Some(v);
                         introspect.get_sink_info_by_name(
                             default_sink_name.as_ref().unwrap(),
-                            move |res| tx_sink(&tx, res),
+                            move |res| tx_sink(&tx, &res),
                         );
                     }
                     Ok(TxMessage::SinkValueChange { val, name }) => {
