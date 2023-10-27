@@ -35,9 +35,7 @@ impl super::Block for Battery {
             let cap = std::fs::read_to_string(bat.join("capacity"))
                 .ok()
                 .and_then(|v| v.trim().replace('$', "").parse::<i32>().ok());
-            let Some(cap) = cap else {
-                continue
-            };
+            let Some(cap) = cap else { continue };
             let sep = if cap < 25 { "❗" } else { " " };
 
             let status = match std::fs::read_to_string(bat.join("status"))?

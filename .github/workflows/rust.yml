@@ -1,0 +1,64 @@
+on: [push, pull_request]
+
+name: rust
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Install dependencies
+        run: sudo apt update && sudo apt install -y pkg-config libssl-dev libx11-dev libsqlite3-dev libpulse-dev
+
+      - run: cargo check --all --tests --all-features
+      - run: cargo clippy --all --tests --all-features -- -D warnings
+
+  deny:
+    name: Deny Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Run cargo deny
+        uses: EmbarkStudios/cargo-deny-action@v1
+
+  fmt:
+    name: Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - run: cargo fmt --all -- --check
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: sudo apt update && sudo apt install -y pkg-config libssl-dev libx11-dev libsqlite3-dev libpulse-dev
+
+      - run: cargo build --all --tests --all-features

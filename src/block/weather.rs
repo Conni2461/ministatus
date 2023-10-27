@@ -55,8 +55,8 @@ fn get_weather_data(
         .filter_map(|m| m.as_str()[..m.len() - 1].parse::<i32>().ok())
         .max();
     let Some(rain) = rain else {
-            return Ok(None);
-        };
+        return Ok(None);
+    };
 
     let temp = temp_regex
         .find_iter(&h)
