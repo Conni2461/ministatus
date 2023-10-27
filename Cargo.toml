@@ -1,6 +1,27 @@
-[workspace]
+[package]
+name = "ministatus"
+version = "0.1.0"
+edition = "2021"
 
-members = [
-  "ministatus",
-  "refreshbar",
-]
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+anyhow = "1"
+x11 = { version = "2.21", default-features = false, features = ["xlib"] }
+
+# mailbox
+glob = "0.3"
+
+# news
+sqlite = "0.31"
+
+# volume
+regex = "1"
+
+# weather
+ureq = { version = "2", default-features = false, features = ["native-tls"] }
+native-tls = "0.2"
+
+# pulse
+libpulse-binding = "2"
