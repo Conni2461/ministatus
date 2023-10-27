@@ -3,7 +3,7 @@ use std::sync::{mpsc, Arc, RwLock};
 use libpulse_binding::{
     callbacks::ListResult,
     context::{
-        introspect::SinkInfo,
+        introspect::{ServerInfo, SinkInfo},
         subscribe::{Facility, InterestMaskSet},
         Context, FlagSet, State,
     },
@@ -18,6 +18,11 @@ use crate::shared::Shared;
 struct TxState {
     pub volume: i32,
     pub mute: bool,
+}
+
+enum TxMessage {
+    DefaultSinkChange(String),
+    SinkValueChange { val: TxState, name: String },
 }
 
 pub struct Pulse {
@@ -104,13 +109,23 @@ impl Pulse {
     }
 
     fn subscribe(&self) {
-        fn tx_sink(tx: &mpsc::Sender<TxState>, result: ListResult<&SinkInfo<'_>>) {
+        fn tx_server(tx: &mpsc::Sender<TxMessage>, result: &ServerInfo<'_>) {
+            if let Some(n) = &result.default_sink_name {
+                tx.send(TxMessage::DefaultSinkChange(n.to_string()))
+                    .unwrap();
+            }
+        }
+
+        fn tx_sink(tx: &mpsc::Sender<TxMessage>, result: ListResult<&SinkInfo<'_>>) {
             if let ListResult::Item(item) = result {
-                if item.state.is_running() {
-                    tx.send(TxState {
-                        volume: ((item.volume.avg().0 as f32 / Volume::NORMAL.0 as f32) * 100.)
-                            as i32,
-                        mute: item.mute,
+                if let Some(name) = &item.name {
+                    tx.send(TxMessage::SinkValueChange {
+                        val: TxState {
+                            volume: ((item.volume.avg().0 as f32 / Volume::NORMAL.0 as f32) * 100.)
+                                as i32,
+                            mute: item.mute,
+                        },
+                        name: name.to_string(),
                     })
                     .unwrap();
                 }
@@ -122,39 +137,61 @@ impl Pulse {
         mainloop.lock();
 
         let introspect = ctx.introspect();
-
-        let (tx, rx) = mpsc::channel::<TxState>();
+        let (tx, rx) = mpsc::channel::<TxMessage>();
 
         let tx2 = tx.clone();
-        introspect.get_sink_info_list(move |res| tx_sink(&tx2, res));
+        introspect.get_sink_info_by_name("@DEFAULT_SINK@", move |res| tx_sink(&tx2, res));
 
+        let tx2 = tx.clone();
         ctx.subscribe(InterestMaskSet::SERVER | InterestMaskSet::SINK, |_| ());
-        ctx.set_subscribe_callback(Some(Box::new(move |fac, _, index| {
-            let tx = tx.clone();
+        ctx.set_subscribe_callback(Some(Box::new(move |fac, op, index| {
+            let tx2 = tx2.clone();
 
-            match fac {
-                // TODO
-                // Some(Facility::Server) => {
-                //     introspect.get_server_info(move |res| tx_server(&sc_tx, res));
-                // }
-                Some(Facility::Sink) => {
-                    introspect.get_sink_info_by_index(index, move |res| tx_sink(&tx, res));
-                }
-                _ => (),
-            };
+            if op == Some(libpulse_binding::context::subscribe::Operation::Changed) {
+                match fac {
+                    Some(Facility::Server) => {
+                        introspect.get_server_info(move |res| tx_server(&tx2, res));
+                    }
+                    Some(Facility::Sink) => {
+                        introspect.get_sink_info_by_index(index, move |res| tx_sink(&tx2, res));
+                    }
+                    _ => (),
+                };
+            }
         })));
 
-        mainloop.unlock();
-
         let state = self.state.clone();
-        std::thread::spawn(move || loop {
-            let state = state.clone();
-            if let Ok(o) = rx.recv() {
-                if let Ok(mut w) = state.write() {
-                    *w = o;
+        let introspect = ctx.introspect();
+        std::thread::spawn(move || {
+            let mut default_sink_name: Option<String> = None;
+            loop {
+                let tx = tx.clone();
+                let state = state.clone();
+
+                match rx.recv() {
+                    Ok(TxMessage::DefaultSinkChange(v)) => {
+                        default_sink_name = Some(v);
+                        introspect.get_sink_info_by_name(
+                            default_sink_name.as_ref().unwrap(),
+                            move |res| tx_sink(&tx, res),
+                        );
+                    }
+                    Ok(TxMessage::SinkValueChange { val, name }) => {
+                        if default_sink_name.is_none() {
+                            default_sink_name = Some(name);
+                        } else if default_sink_name != Some(name) {
+                            continue;
+                        }
+                        if let Ok(mut w) = state.write() {
+                            *w = val;
+                        }
+                    }
+                    Err(_) => (),
                 }
             }
         });
+
+        mainloop.unlock();
     }
 
     fn cleanup(&self) {

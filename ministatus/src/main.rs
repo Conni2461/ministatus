@@ -53,6 +53,6 @@ fn main() -> Result<(), anyhow::Error> {
         } else {
             println!("{}", &out.join(" | "));
         }
-        std::thread::sleep(std::time::Duration::from_secs(10));
+        std::thread::sleep(std::time::Duration::from_secs(1));
     }
 }
