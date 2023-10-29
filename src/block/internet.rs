@@ -8,8 +8,8 @@ impl Internet {
 
 impl super::Block for Internet {
     fn run(&self) -> Result<Option<String>, anyhow::Error> {
-        let tuple = super::file_as_vec_str("/proc/net/wireless")?
-            .into_iter()
+        let tuple = std::fs::read_to_string("/proc/net/wireless")?
+            .lines()
             .find(|s| s.starts_with('w'))
             .map(|v| {
                 let a = v.split_whitespace().collect::<Vec<_>>();
@@ -25,8 +25,9 @@ impl super::Block for Internet {
         let Some((Some(id), Some(val))) = tuple else {
             return Ok(None);
         };
-        let state = super::file_as_vec_str(&format!("/sys/class/net/{id}/operstate"))?
-            .get(0)
+        let state = std::fs::read_to_string(format!("/sys/class/net/{id}/operstate"))?
+            .lines()
+            .next()
             .map_or(false, |o| o == "up");
         let icon = if state { "🌍" } else { "❎" };
 

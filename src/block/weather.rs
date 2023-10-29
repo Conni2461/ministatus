@@ -1,8 +1,8 @@
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::{Arc, RwLock};
 
-// every 4h (timeout 10s)
-const TIMEOUT_TIME: i32 = 1440;
+// every 4h (timeout 1s)
+const TIMEOUT_TIME: i32 = 60 * 60 * 4;
 
 #[derive(Debug, Clone, Copy)]
 struct Data {
@@ -17,7 +17,7 @@ pub struct Weather {
     rain_regex: regex::Regex,
     temp_regex: regex::Regex,
 
-    timeout: AtomicI32,
+    timeout: Arc<AtomicI32>,
 }
 
 fn get_weather_data(
@@ -79,24 +79,29 @@ impl Weather {
 
         let rain_regex = regex::Regex::new(r"(\d+%)")?;
         let temp_regex = regex::Regex::new(r"(\+\d+)")?;
-        let data = Arc::new(RwLock::new(
-            get_weather_data(&agent, &rain_regex, &temp_regex).unwrap_or_default(),
-        ));
+
+        let data = get_weather_data(&agent, &rain_regex, &temp_regex).unwrap_or_default();
+        let timeout = if data.is_some() {
+            AtomicI32::new(TIMEOUT_TIME)
+        } else {
+            // if first fetch is None try again 60 ticks later
+            AtomicI32::new(60)
+        };
 
         Ok(Self {
             agent,
-            data,
+            data: Arc::new(RwLock::new(data)),
             rain_regex,
             temp_regex,
 
-            timeout: AtomicI32::new(TIMEOUT_TIME),
+            timeout: Arc::new(timeout),
         })
     }
 
     fn refresh_data(&self) {
         self.timeout.fetch_sub(1, Ordering::SeqCst);
         if self.timeout.load(Ordering::Relaxed) == 0 {
-            self.timeout.store(TIMEOUT_TIME, Ordering::Relaxed);
+            let timeout = self.timeout.clone();
 
             let d = self.data.clone();
             let agent = self.agent.clone();
@@ -105,9 +110,12 @@ impl Weather {
             std::thread::spawn(move || {
                 let new = get_weather_data(&agent, &rain_regex, &temp_regex).unwrap_or_default();
                 if new.is_none() {
+                    // if refresh data is still None, move refresh time back to 3600 ticks aka 1h
+                    timeout.store(60 * 60, Ordering::Relaxed);
                     return;
                 }
 
+                timeout.store(TIMEOUT_TIME, Ordering::Relaxed);
                 let mut w = d.write().unwrap();
                 *w = new;
             });
