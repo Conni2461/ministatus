@@ -44,8 +44,7 @@ impl super::Block for Battery {
                 .as_str()
             {
                 "Discharging" => "🔋".into(),
-                "Not Charging" => "🛑".into(),
-                "Charging" => "🔌".into(),
+                "Charging" | "Not charging" => "🔌".into(),
                 "Unknown" => "♻️".into(),
                 "Full" => "⚡".into(),
                 o => o.to_string(),
