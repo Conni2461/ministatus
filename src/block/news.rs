@@ -2,7 +2,7 @@ const STMT: &str = "SELECT Count(*) FROM rss_item WHERE unread = 1;";
 
 pub struct News {
     home: String,
-    conn: sqlite::Connection,
+    conn: rusqlite::Connection,
 }
 
 impl News {
@@ -14,9 +14,9 @@ impl News {
 
         Ok(Self {
             home: home.to_owned(),
-            conn: sqlite::Connection::open_with_flags(
+            conn: rusqlite::Connection::open_with_flags(
                 dbfile,
-                sqlite::OpenFlags::new().set_read_only(),
+                rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
             )?,
         })
     }
@@ -28,14 +28,7 @@ impl super::Block for News {
             return Ok(Some("📰 🔃".into()));
         }
 
-        let mut news = 0;
-        self.conn.iterate(STMT, |pairs| {
-            news = pairs
-                .first()
-                .and_then(|&(_, val)| val.and_then(|v| v.parse::<i32>().ok()))
-                .unwrap_or(0);
-            true
-        })?;
+        let news = self.conn.query_row(STMT, [], |row| row.get::<_, i32>(0))?;
         if news == 0 {
             Ok(None)
         } else {
