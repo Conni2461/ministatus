@@ -128,7 +128,7 @@ impl super::Block for Weather {
         self.refresh_data();
         if let Some(d) = *self.data.read().unwrap() {
             Ok(Some(format!(
-                "☔ {}% ❄  {}° ☀  {}°",
+                "☂️ {}% ❄ {}° ☀️ {}°",
                 d.rain, d.min_temp, d.max_temp
             )))
         } else {
