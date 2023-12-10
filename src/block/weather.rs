@@ -75,7 +75,10 @@ fn get_weather_data(
 impl Weather {
     pub fn new() -> Result<Self, anyhow::Error> {
         let tls_connector = Arc::new(native_tls::TlsConnector::new()?);
-        let agent = ureq::builder().tls_connector(tls_connector).build();
+        let agent = ureq::builder()
+            .tls_connector(tls_connector)
+            .timeout(std::time::Duration::from_secs(2))
+            .build();
 
         let rain_regex = regex::Regex::new(r"(\d+%)")?;
         let temp_regex = regex::Regex::new(r"(\+\d+)")?;
