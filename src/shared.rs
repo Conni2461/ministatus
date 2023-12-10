@@ -8,8 +8,8 @@ pub struct Shared<T> {
 }
 
 impl<T> Shared<T> {
-    pub fn new(t: T) -> Shared<T> {
-        Shared {
+    pub fn new(t: T) -> Self {
+        Self {
             v: Rc::new(RefCell::new(t)),
         }
     }
@@ -26,8 +26,8 @@ impl<T> Shared<T> {
         self.v.as_ptr()
     }
 
-    pub fn clone_rc(&self) -> Shared<T> {
-        Shared {
+    pub fn clone_rc(&self) -> Self {
+        Self {
             v: Rc::clone(&self.v),
         }
     }

@@ -1,7 +1,7 @@
 pub struct Internet {}
 
 impl Internet {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {}
     }
 }

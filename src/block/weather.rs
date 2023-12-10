@@ -129,13 +129,14 @@ impl Weather {
 impl super::Block for Weather {
     fn run(&self) -> Result<Option<String>, anyhow::Error> {
         self.refresh_data();
-        if let Some(d) = *self.data.read().unwrap() {
-            Ok(Some(format!(
-                "☂️ {}% ❄ {}° ☀️ {}°",
-                d.rain, d.min_temp, d.max_temp
-            )))
-        } else {
-            Ok(None)
-        }
+        self.data.read().unwrap().map_or_else(
+            || Ok(None),
+            |d| {
+                Ok(Some(format!(
+                    "☂️ {}% ❄ {}° ☀️ {}°",
+                    d.rain, d.min_temp, d.max_temp
+                )))
+            },
+        )
     }
 }

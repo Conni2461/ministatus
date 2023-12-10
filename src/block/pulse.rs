@@ -34,17 +34,18 @@ pub struct Pulse {
 
 impl Pulse {
     pub fn new() -> Result<Self, anyhow::Error> {
-        let mut proplist = Proplist::new().ok_or(anyhow::anyhow!("Failed to init Proplist"))?;
+        let mut proplist =
+            Proplist::new().ok_or_else(|| anyhow::anyhow!("Failed to init Proplist"))?;
         proplist
             .set_str(properties::APPLICATION_NAME, "ministatus")
             .map_err(|()| anyhow::anyhow!("Failed to set APPLICATION_NAME"))?;
 
         let mainloop =
-            Shared::new(Mainloop::new().ok_or(anyhow::anyhow!("Failed to init Mainloop"))?);
+            Shared::new(Mainloop::new().ok_or_else(|| anyhow::anyhow!("Failed to init Mainloop"))?);
 
         let context = Shared::new(
             Context::new_with_proplist(&*mainloop.borrow(), "ministatus context", &proplist)
-                .ok_or(anyhow::anyhow!("Failed to init Context"))?,
+                .ok_or_else(|| anyhow::anyhow!("Failed to init Context"))?,
         );
 
         let s = Self {

@@ -1,7 +1,7 @@
 pub struct Clock {}
 
 impl Clock {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {}
     }
 }
