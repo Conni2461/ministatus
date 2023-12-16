@@ -125,8 +125,8 @@ impl Pulse {
                         clippy::cast_sign_loss,
                         clippy::cast_precision_loss
                     )]
-                    let volume =
-                        ((item.volume.avg().0 as f32 / Volume::NORMAL.0 as f32) * 100.) as u32;
+                    let volume = ((item.volume.avg().0 as f32 / Volume::NORMAL.0 as f32) * 100.)
+                        .round() as u32;
                     tx.send(TxMessage::SinkValueChange {
                         val: TxState {
                             volume,
