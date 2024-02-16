@@ -1,6 +1,5 @@
-{ pkgs ? import <nixpkgs> {} }: let
-  unstable = pkgs.unstable or (import <nixpkgs-unstable> { });
-  rustPackages = pkgs.rustPackages_1_66 or pkgs.rustPackages;
+{ pkgs ? import <nixpkgs> { } }: let
+  inherit (pkgs) rustPackages;
 in pkgs.mkShell {
   nativeBuildInputs = with pkgs; [
     # Compiler and linker
