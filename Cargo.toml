@@ -15,7 +15,7 @@ x11 = { version = "2.21", default-features = false, features = ["xlib"] }
 glob = "0.3"
 
 # news
-rusqlite = "0.30"
+rusqlite = "0.31"
 
 # volume
 regex = "1"
