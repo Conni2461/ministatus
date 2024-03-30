@@ -29,7 +29,7 @@ fn main() -> Result<(), anyhow::Error> {
     blocks.push(Box::new(block::Clock::new()));
 
     let mut prev_state: HashMap<usize, String> = HashMap::new();
-    let debug = std::env::var("DEBUG").map(|v| v == "1").unwrap_or_default();
+    let debug = std::env::var("DEBUG").is_ok_and(|v| v == "1");
 
     loop {
         let now = std::time::Instant::now();
