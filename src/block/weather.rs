@@ -1,8 +1,31 @@
+use std::fmt::Display;
+use std::str::FromStr;
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::{Arc, RwLock};
 
+use serde::{Deserialize, Deserializer};
+
 // every 4h (timeout 1s)
 const TIMEOUT_TIME: i32 = 60 * 60 * 4;
+
+pub fn deserialize_number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: FromStr + Deserialize<'de>,
+    <T as FromStr>::Err: Display,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrInt<T> {
+        String(String),
+        Number(T),
+    }
+
+    match StringOrInt::<T>::deserialize(deserializer)? {
+        StringOrInt::String(s) => s.parse::<T>().map_err(serde::de::Error::custom),
+        StringOrInt::Number(i) => Ok(i),
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 struct Data {
@@ -11,64 +34,61 @@ struct Data {
     max_temp: i32,
 }
 
+#[derive(Deserialize, Debug)]
+struct Response {
+    weather: Vec<WeatherResponse>,
+}
+
+#[derive(Deserialize, Debug)]
+struct WeatherResponse {
+    hourly: Vec<WeatherHourly>,
+}
+
+#[derive(Deserialize, Debug)]
+struct WeatherHourly {
+    #[serde(rename = "tempC", deserialize_with = "deserialize_number_from_string")]
+    temp_c: i32,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    time: i32,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    chanceofrain: i32,
+}
+
 pub struct Weather {
     agent: ureq::Agent,
     data: Arc<RwLock<Option<Data>>>,
-    rain_regex: regex::Regex,
-    temp_regex: regex::Regex,
 
     timeout: Arc<AtomicI32>,
 }
 
-fn get_weather_data(
-    agent: &ureq::Agent,
-    rain_regex: &regex::Regex,
-    temp_regex: &regex::Regex,
-) -> Result<Option<Data>, anyhow::Error> {
-    let output = agent
-        .get("https://wttr.in")
-        .set("Accept", "text/plain")
-        .set("User-Agent", "curl/8.1.1")
+fn get_weather_data(agent: &ureq::Agent) -> Result<Option<Data>, anyhow::Error> {
+    let output: Response = agent
+        .get("https://wttr.in?format=j1")
+        .set("Accept", "application/json")
         .call()?
-        .into_string()?;
-    let data = output
-        .lines()
-        .map(ToOwned::to_owned)
-        .collect::<Vec<String>>();
-    if data.is_empty() {
-        return Ok(None);
-    }
-
-    let (Some(r), Some(h)) = (
-        data.get(15).map(ToOwned::to_owned),
-        data.get(12).map(ToOwned::to_owned),
-    ) else {
+        .into_json()?;
+    let Some(data) = output.weather.get(0) else {
         return Ok(None);
     };
 
-    let rain = rain_regex
-        .find_iter(&r)
-        .filter_map(|m| m.as_str()[..m.len() - 1].parse::<i32>().ok())
-        .max();
-    let Some(rain) = rain else {
+    let filtered_data = data
+        .hourly
+        .iter()
+        .filter(|v| v.time >= 900 && v.time <= 2100);
+    let Some(min_temp) = filtered_data.clone().map(|v| v.temp_c).min() else {
         return Ok(None);
     };
-
-    let temp = temp_regex
-        .find_iter(&h)
-        .filter_map(|m| m.as_str()[1..].parse::<i32>().ok())
-        .collect::<Vec<_>>();
-    let Some(min) = temp.iter().min() else {
+    let Some(max_temp) = filtered_data.clone().map(|v| v.temp_c).max() else {
         return Ok(None);
     };
-    let Some(max) = temp.iter().max() else {
+    let Some(rain) = filtered_data.clone().map(|v| v.chanceofrain).max() else {
         return Ok(None);
     };
 
     Ok(Some(Data {
         rain,
-        min_temp: *min,
-        max_temp: *max,
+        min_temp,
+        max_temp,
     }))
 }
 
@@ -80,10 +100,13 @@ impl Weather {
             .timeout(std::time::Duration::from_secs(2))
             .build();
 
-        let rain_regex = regex::Regex::new(r"(\d+%)")?;
-        let temp_regex = regex::Regex::new(r"(\+\d+)")?;
-
-        let data = get_weather_data(&agent, &rain_regex, &temp_regex).unwrap_or_default();
+        let data = match get_weather_data(&agent) {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("failed to retrieve weather data: {e}");
+                None
+            }
+        };
         let timeout = if data.is_some() {
             AtomicI32::new(TIMEOUT_TIME)
         } else {
@@ -94,8 +117,6 @@ impl Weather {
         Ok(Self {
             agent,
             data: Arc::new(RwLock::new(data)),
-            rain_regex,
-            temp_regex,
 
             timeout: Arc::new(timeout),
         })
@@ -108,10 +129,8 @@ impl Weather {
 
             let d = self.data.clone();
             let agent = self.agent.clone();
-            let rain_regex = self.rain_regex.clone();
-            let temp_regex = self.temp_regex.clone();
             std::thread::spawn(move || {
-                let new = get_weather_data(&agent, &rain_regex, &temp_regex).unwrap_or_default();
+                let new = get_weather_data(&agent).unwrap_or_default();
                 if new.is_none() {
                     // if refresh data is still None, move refresh time back to 3600 ticks aka 1h
                     timeout.store(60 * 60, Ordering::Relaxed);
