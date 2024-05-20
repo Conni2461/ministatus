@@ -69,7 +69,7 @@ fn get_weather_data(agent: &ureq::Agent) -> Result<Option<Data>, anyhow::Error> 
         .set("Accept", "application/json")
         .call()?
         .into_json()?;
-    let Some(data) = output.weather.get(0) else {
+    let Some(data) = output.weather.first() else {
         return Ok(None);
     };
 
