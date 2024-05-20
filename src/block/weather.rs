@@ -52,6 +52,8 @@ struct WeatherHourly {
     time: i32,
     #[serde(deserialize_with = "deserialize_number_from_string")]
     chanceofrain: i32,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    chanceofsnow: i32,
 }
 
 pub struct Weather {
@@ -81,7 +83,11 @@ fn get_weather_data(agent: &ureq::Agent) -> Result<Option<Data>, anyhow::Error> 
     let Some(max_temp) = filtered_data.clone().map(|v| v.temp_c).max() else {
         return Ok(None);
     };
-    let Some(rain) = filtered_data.clone().map(|v| v.chanceofrain).max() else {
+    let Some(rain) = filtered_data
+        .clone()
+        .flat_map(|v| std::iter::once(v.chanceofrain).chain(std::iter::once(v.chanceofsnow)))
+        .max()
+    else {
         return Ok(None);
     };
 
