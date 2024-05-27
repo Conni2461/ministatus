@@ -19,7 +19,7 @@ rusqlite = "0.31"
 
 # weather
 ureq = { version = "2", default-features = false, features = ["native-tls", "json"] }
-serde = { version = "1.0.202", features = ["derive"] }
+serde = { version = "1.0.203", features = ["derive"] }
 native-tls = "0.2"
 
 # pulse
