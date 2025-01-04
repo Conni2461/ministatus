@@ -22,7 +22,7 @@ fn main() -> Result<(), anyhow::Error> {
         Ok(v) => blocks.push(Box::new(v)),
         Err(e) => eprintln!("mailbox disabled because of {e}"),
     }
-    blocks.push(Box::new(block::Weather::new()?));
+    blocks.push(Box::new(block::Weather::new()));
     blocks.push(Box::new(block::Internet::new()));
     blocks.push(Box::new(block::Battery::new()));
     blocks.push(Box::new(block::Pulse::new()?));

@@ -65,10 +65,12 @@ pub struct Weather {
 
 fn get_weather_data(agent: &ureq::Agent) -> Result<Option<Data>, anyhow::Error> {
     let output: Response = agent
-        .get("https://wttr.in?format=j1")
-        .set("Accept", "application/json")
+        .get("https://wttr.in")
+        .query("format", "j1")
+        .header("accept", "application/json")
         .call()?
-        .into_json()?;
+        .body_mut()
+        .read_json()?;
     let Some(data) = output.weather.first() else {
         return Ok(None);
     };
@@ -99,12 +101,16 @@ fn get_weather_data(agent: &ureq::Agent) -> Result<Option<Data>, anyhow::Error> 
 }
 
 impl Weather {
-    pub fn new() -> Result<Self, anyhow::Error> {
-        let tls_connector = Arc::new(native_tls::TlsConnector::new()?);
-        let agent = ureq::builder()
-            .tls_connector(tls_connector)
-            .timeout(std::time::Duration::from_secs(2))
-            .build();
+    pub fn new() -> Self {
+        let agent: ureq::Agent = ureq::Agent::config_builder()
+            .timeout_global(Some(std::time::Duration::from_secs(2)))
+            .tls_config(
+                ureq::tls::TlsConfig::builder()
+                    .provider(ureq::tls::TlsProvider::NativeTls)
+                    .build(),
+            )
+            .build()
+            .into();
 
         let data = match get_weather_data(&agent) {
             Ok(v) => v,
@@ -120,12 +126,12 @@ impl Weather {
             AtomicI32::new(60)
         };
 
-        Ok(Self {
+        Self {
             agent,
             data: Arc::new(RwLock::new(data)),
 
             timeout: Arc::new(timeout),
-        })
+        }
     }
 
     fn refresh_data(&self) {

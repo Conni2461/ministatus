@@ -18,9 +18,8 @@ glob = "0.3"
 rusqlite = "0.32"
 
 # weather
-ureq = { version = "2", default-features = false, features = ["native-tls", "json"] }
+ureq = { version = "3.0.0-rc4", default-features = false, features = ["native-tls", "json"] }
 serde = { version = "1.0.202", features = ["derive"] }
-native-tls = "0.2"
 
 # pulse
 libpulse-binding = "2"
