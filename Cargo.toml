@@ -15,10 +15,10 @@ x11 = { version = "2.21", default-features = false, features = ["xlib"] }
 glob = "0.3"
 
 # news
-rusqlite = "0.32"
+rusqlite = "0.33"
 
 # weather
-ureq = { version = "3.0.0-rc4", default-features = false, features = ["native-tls", "json"] }
+ureq = { version = "3.0.0", default-features = false, features = ["native-tls", "json"] }
 serde = { version = "1.0.202", features = ["derive"] }
 
 # pulse

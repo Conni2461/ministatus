@@ -25,11 +25,15 @@ impl super::Block for Internet {
         let Some((Some(id), Some(val))) = tuple else {
             return Ok(None);
         };
-        let state = std::fs::read_to_string(format!("/sys/class/net/{id}/operstate"))?
+        let icon = if std::fs::read_to_string(format!("/sys/class/net/{id}/operstate"))?
             .lines()
             .next()
-            .map_or(false, |o| o == "up");
-        let icon = if state { "🌍" } else { "❎" };
+            == Some("up")
+        {
+            "🌍"
+        } else {
+            "❎"
+        };
 
         #[allow(clippy::cast_possible_truncation)]
         let val = (val * 100.0 / 70.0) as i32;
