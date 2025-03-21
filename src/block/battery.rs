@@ -41,7 +41,7 @@ impl super::Block for Battery {
             let current = std::fs::read_to_string(bat.join("current_now"))
                 .ok()
                 .and_then(|v| v.trim().parse::<f64>().ok());
-            let voltage = std::fs::read_to_string(bat.join("current_now"))
+            let voltage = std::fs::read_to_string(bat.join("voltage_now"))
                 .ok()
                 .and_then(|v| v.trim().parse::<f64>().ok());
             let mut watt = if let (Some(current), Some(voltage)) = (current, voltage) {
