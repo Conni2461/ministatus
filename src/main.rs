@@ -40,7 +40,7 @@ fn main() -> Result<(), anyhow::Error> {
                     out.push(v.clone());
                     prev_state.insert(i, v);
                 }
-                Ok(None) => continue, // if we have a None Value we dont wanna show this block
+                Ok(None) => (), // if we have a None Value we dont wanna show this block
                 Err(_) => {
                     // If we have a Error we check the previous state for a value
                     if let Some(v) = prev_state.get(&i) {

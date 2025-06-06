@@ -136,7 +136,7 @@ impl Pulse {
                     })
                     .unwrap();
                 }
-            };
+            }
         }
 
         let mut mainloop = self.mainloop.borrow_mut();
@@ -163,7 +163,7 @@ impl Pulse {
                         introspect.get_sink_info_by_index(index, move |res| tx_sink(&tx2, &res));
                     }
                     _ => (),
-                };
+                }
             }
         })));
 
