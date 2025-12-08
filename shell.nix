@@ -4,7 +4,7 @@ in pkgs.mkShell {
   nativeBuildInputs = with pkgs; [
     # Compiler and linker
     rustPackages.rustc
-    clang_15
+    clang_18
     # Native dependencies
     pkg-config
     rustPackages.cargo
