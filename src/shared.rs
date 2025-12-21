@@ -1,7 +1,5 @@
-use std::{
-    cell::{Ref, RefCell, RefMut},
-    rc::Rc,
-};
+use std::cell::{Ref, RefCell, RefMut};
+use std::rc::Rc;
 
 pub struct Shared<T> {
     v: Rc<RefCell<T>>,
@@ -14,11 +12,11 @@ impl<T> Shared<T> {
         }
     }
 
-    pub fn borrow(&self) -> Ref<T> {
+    pub fn borrow(&self) -> Ref<'_, T> {
         self.v.borrow()
     }
 
-    pub fn borrow_mut(&self) -> RefMut<T> {
+    pub fn borrow_mut(&self) -> RefMut<'_, T> {
         self.v.borrow_mut()
     }
 
