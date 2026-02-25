@@ -1,7 +1,7 @@
 [package]
 name = "ministatus"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -18,7 +18,7 @@ glob = "0.3"
 rusqlite = "0.38"
 
 # weather
-ureq = { version = "3.0.0", default-features = false, features = ["native-tls", "json"] }
+ureq = { version = "3.0.0", default-features = false, features = ["rustls", "json"] }
 serde = { version = "1.0.202", features = ["derive"] }
 
 # pulse

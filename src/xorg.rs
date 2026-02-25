@@ -1,4 +1,4 @@
-use std::ffi::{c_ulong, CString};
+use std::ffi::{CString, c_ulong};
 use std::ptr::null;
 
 pub struct Window {

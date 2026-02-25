@@ -16,7 +16,6 @@ in pkgs.mkShell {
     rustPackages.rustfmt
   ];
   buildInputs = with pkgs; [
-    openssl
     xorg.libX11
     sqlite
     libpulseaudio

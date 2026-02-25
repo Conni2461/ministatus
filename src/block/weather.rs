@@ -106,7 +106,7 @@ impl Weather {
             .timeout_global(Some(std::time::Duration::from_secs(2)))
             .tls_config(
                 ureq::tls::TlsConfig::builder()
-                    .provider(ureq::tls::TlsProvider::NativeTls)
+                    .provider(ureq::tls::TlsProvider::Rustls)
                     .build(),
             )
             .build()

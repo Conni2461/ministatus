@@ -1,14 +1,14 @@
-use std::sync::{mpsc, Arc, RwLock};
+use std::sync::{Arc, RwLock, mpsc};
 
 use libpulse_binding::{
     callbacks::ListResult,
     context::{
+        Context, FlagSet, State,
         introspect::{ServerInfo, SinkInfo},
         subscribe::{Facility, InterestMaskSet},
-        Context, FlagSet, State,
     },
     mainloop::threaded::Mainloop,
-    proplist::{properties, Proplist},
+    proplist::{Proplist, properties},
     volume::Volume,
 };
 
@@ -118,24 +118,24 @@ impl Pulse {
         }
 
         fn tx_sink(tx: &mpsc::Sender<TxMessage>, result: &ListResult<&SinkInfo<'_>>) {
-            if let ListResult::Item(item) = result {
-                if let Some(name) = &item.name {
-                    #[allow(
-                        clippy::cast_possible_truncation,
-                        clippy::cast_sign_loss,
-                        clippy::cast_precision_loss
-                    )]
-                    let volume = ((item.volume.avg().0 as f32 / Volume::NORMAL.0 as f32) * 100.)
-                        .round() as u32;
-                    tx.send(TxMessage::SinkValueChange {
-                        val: TxState {
-                            volume,
-                            mute: item.mute,
-                        },
-                        name: name.to_string(),
-                    })
-                    .unwrap();
-                }
+            if let ListResult::Item(item) = result
+                && let Some(name) = &item.name
+            {
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss,
+                    clippy::cast_precision_loss
+                )]
+                let volume =
+                    ((item.volume.avg().0 as f32 / Volume::NORMAL.0 as f32) * 100.).round() as u32;
+                tx.send(TxMessage::SinkValueChange {
+                    val: TxState {
+                        volume,
+                        mute: item.mute,
+                    },
+                    name: name.to_string(),
+                })
+                .unwrap();
             }
         }
 
