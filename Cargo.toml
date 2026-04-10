@@ -15,7 +15,7 @@ x11 = { version = "2.21", default-features = false, features = ["xlib"] }
 glob = "0.3"
 
 # news
-rusqlite = "0.38"
+rusqlite = "0.39"
 
 # weather
 ureq = { version = "3.0.0", default-features = false, features = ["rustls", "json"] }
