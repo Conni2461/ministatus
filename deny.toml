@@ -17,10 +17,12 @@ allow = [
   "MIT",              # https://tldrlegal.com/license/mit-license
   "Apache-2.0",       # https://tldrlegal.com/license/apache-license-2.0-(apache-2.0)
   "Apache-2.0 WITH LLVM-exception",
+  "ISC",              # https://tldrlegal.com/license/-isc-license
   "Unicode-3.0",      # https://spdx.org/licenses/Unicode-3.0.html
+  "BSD-3-Clause",     # https://tldrlegal.com/license/bsd-3-clause-license-(revised)
   "Unlicense",        # https://tldrlegal.com/license/unlicense
-  "MPL-2.0",          # https://www.tldrlegal.com/license/mozilla-public-license-2-0-mpl-2
   "Zlib",             # https://www.tldrlegal.com/license/zlib-libpng-license-zlib
+  "CDLA-Permissive-2.0",
 ]
 confidence-threshold = 0.8
 exceptions = [ ]
@@ -37,7 +39,6 @@ workspace-default-features = "allow"
 external-default-features = "allow"
 allow = [ ]
 deny = [
-  { name = "rustls" }
 ]
 
 skip = [ ]
