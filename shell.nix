@@ -4,14 +4,13 @@ in pkgs.mkShell {
   nativeBuildInputs = with pkgs; [
     # Compiler and linker
     rustPackages.rustc
-    clang_18
+    clang
     # Native dependencies
     pkg-config
     rustPackages.cargo
     # Utilities
     cargo-deny
     cargo-watch
-    cargo-outdated
     rustPackages.clippy
     rustPackages.rustfmt
   ];

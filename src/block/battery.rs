@@ -12,8 +12,7 @@ impl Battery {
                 if ps
                     .file_name()
                     .into_string()
-                    .map(|x| x.starts_with("BAT"))
-                    .unwrap_or(false)
+                    .is_ok_and(|x| x.starts_with("BAT"))
                 {
                     batteries.push(ps.path());
                 }
