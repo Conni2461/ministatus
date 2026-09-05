@@ -66,8 +66,8 @@ impl Cpu {
 
 fn render(pct: u64, load: Option<&str>) -> String {
     match load {
-        Some(load) => format!("⚙ {pct}% ({load})"),
-        None => format!("⚙ {pct}%"),
+        Some(load) => format!("⚙  {pct}% ({load})"),
+        None => format!("⚙  {pct}%"),
     }
 }
 
@@ -145,11 +145,11 @@ mod tests {
 
     #[test]
     fn full_appends_the_load_average() {
-        assert_eq!(render(12, Some("1.24 0.88 0.61")), "⚙ 12% (1.24 0.88 0.61)");
+        assert_eq!(render(12, Some("1.24 0.88 0.61")), "⚙  12% (1.24 0.88 0.61)");
     }
 
     #[test]
     fn compact_shows_the_percentage_alone() {
-        assert_eq!(render(12, None), "⚙ 12%");
+        assert_eq!(render(12, None), "⚙  12%");
     }
 }
