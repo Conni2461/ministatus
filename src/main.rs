@@ -24,6 +24,8 @@ fn main() -> Result<(), anyhow::Error> {
     }
     blocks.push(Box::new(block::Weather::new()));
     blocks.push(Box::new(block::Internet::new()));
+    blocks.push(Box::new(block::Cpu::new()));
+    blocks.push(Box::new(block::Memory::new()));
     blocks.push(Box::new(block::Battery::new()));
     blocks.push(Box::new(block::Pulse::new()?));
     blocks.push(Box::new(block::Clock::new()));
