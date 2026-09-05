@@ -157,17 +157,42 @@ impl Weather {
     }
 }
 
+fn render(d: Data, opts: super::Options) -> String {
+    if opts.compact {
+        format!("☂️ {}% {}/{}°", d.rain, d.min_temp, d.max_temp)
+    } else {
+        format!("☂️ {}% ❄ {}° ☀️ {}°", d.rain, d.min_temp, d.max_temp)
+    }
+}
+
 impl super::Block for Weather {
-    fn run(&self) -> Result<Option<String>, anyhow::Error> {
+    fn run(&self, opts: super::Options) -> Result<Option<String>, anyhow::Error> {
         self.refresh_data();
-        self.data.read().unwrap().map_or_else(
-            || Ok(None),
-            |d| {
-                Ok(Some(format!(
-                    "☂️ {}% ❄ {}° ☀️ {}°",
-                    d.rain, d.min_temp, d.max_temp
-                )))
-            },
-        )
+        self.data
+            .read()
+            .unwrap()
+            .map_or_else(|| Ok(None), |d| Ok(Some(render(d, opts))))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Data, render};
+    use crate::block::Options;
+
+    const SAMPLE: Data = Data {
+        rain: 20,
+        min_temp: 12,
+        max_temp: 24,
+    };
+
+    #[test]
+    fn full_labels_each_metric_with_its_own_emoji() {
+        assert_eq!(render(SAMPLE, Options::default()), "☂️ 20% ❄ 12° ☀️ 24°");
+    }
+
+    #[test]
+    fn compact_collapses_the_temperatures_into_a_range() {
+        assert_eq!(render(SAMPLE, Options { compact: true }), "☂️ 20% 12/24°");
     }
 }

@@ -23,8 +23,16 @@ impl Battery {
     }
 }
 
+fn render(status: &str, cap: i32, watt: Option<f64>) -> String {
+    let sep = if cap < 25 { "❗" } else { " " };
+    match watt {
+        Some(watt) => format!("{status}{sep}{cap}% ({watt:.2}W)"),
+        None => format!("{status}{sep}{cap}%"),
+    }
+}
+
 impl super::Block for Battery {
-    fn run(&self) -> Result<Option<String>, anyhow::Error> {
+    fn run(&self, opts: super::Options) -> Result<Option<String>, anyhow::Error> {
         if self.batteries.is_empty() {
             return Ok(None);
         }
@@ -35,7 +43,6 @@ impl super::Block for Battery {
                 .ok()
                 .and_then(|v| v.trim().replace('$', "").parse::<i32>().ok());
             let Some(cap) = cap else { continue };
-            let sep = if cap < 25 { "❗" } else { " " };
 
             let current = std::fs::read_to_string(bat.join("current_now"))
                 .ok()
@@ -63,11 +70,10 @@ impl super::Block for Battery {
                 "Full" => "⚡".into(),
                 o => o.to_string(),
             };
-            if let Some(watt) = watt {
-                out.push(format!("{status}{sep}{cap}% ({watt:.2}W)"));
-            } else {
-                out.push(format!("{status}{sep}{cap}%"));
+            if opts.compact {
+                watt = None;
             }
+            out.push(render(&status, cap, watt));
         }
 
         if out.is_empty() {
@@ -75,5 +81,26 @@ impl super::Block for Battery {
         } else {
             Ok(Some(out.join(" | ")))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::render;
+
+    #[test]
+    fn full_appends_the_wattage() {
+        assert_eq!(render("🔋", 87, Some(12.34)), "🔋 87% (12.34W)");
+    }
+
+    #[test]
+    fn compact_drops_the_wattage() {
+        assert_eq!(render("🔋", 87, None), "🔋 87%");
+    }
+
+    #[test]
+    fn a_low_charge_is_marked_in_both_modes() {
+        assert_eq!(render("🔋", 12, Some(12.34)), "🔋❗12% (12.34W)");
+        assert_eq!(render("🔋", 12, None), "🔋❗12%");
     }
 }

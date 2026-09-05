@@ -75,7 +75,7 @@ fn main() -> Result<(), anyhow::Error> {
 
         let mut out: Vec<String> = vec![];
         for slot in &mut blocks {
-            match slot.block.run() {
+            match slot.block.run(cfg.options(slot.name)) {
                 Ok(Some(v)) => {
                     out.push(v.clone());
                     slot.prev = Some(v);

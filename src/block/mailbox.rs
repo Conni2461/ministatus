@@ -15,7 +15,7 @@ impl Mailbox {
 }
 
 impl super::Block for Mailbox {
-    fn run(&self) -> Result<Option<String>, anyhow::Error> {
+    fn run(&self, _: super::Options) -> Result<Option<String>, anyhow::Error> {
         let mut c = 0;
         for _ in glob::glob(&self.pattern)? {
             c += 1;

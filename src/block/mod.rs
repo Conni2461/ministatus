@@ -18,8 +18,13 @@ pub use news::News;
 pub use pulse::Pulse;
 pub use weather::Weather;
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Options {
+    pub compact: bool,
+}
+
 pub trait Block {
-    fn run(&self) -> Result<Option<String>, anyhow::Error>;
+    fn run(&self, opts: Options) -> Result<Option<String>, anyhow::Error>;
 }
 
 pub const ALL: [&str; 9] = [

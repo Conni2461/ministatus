@@ -217,7 +217,7 @@ impl Drop for Pulse {
 }
 
 impl super::Block for Pulse {
-    fn run(&self) -> Result<Option<String>, anyhow::Error> {
+    fn run(&self, _: super::Options) -> Result<Option<String>, anyhow::Error> {
         let r = self.state.read().unwrap();
         if r.mute {
             return Ok(Some("🔇".into()));

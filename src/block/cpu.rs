@@ -47,11 +47,24 @@ impl Cpu {
     }
 }
 
+fn render(pct: u64, load: Option<&str>) -> String {
+    match load {
+        Some(load) => format!("⚙ {pct}% ({load})"),
+        None => format!("⚙ {pct}%"),
+    }
+}
+
 impl super::Block for Cpu {
-    fn run(&self) -> Result<Option<String>, anyhow::Error> {
-        let Some(load) = parse_loadavg(&std::fs::read_to_string("/proc/loadavg")?) else {
-            return Ok(None);
+    fn run(&self, opts: super::Options) -> Result<Option<String>, anyhow::Error> {
+        let load = if opts.compact {
+            None
+        } else {
+            let Some(load) = parse_loadavg(&std::fs::read_to_string("/proc/loadavg")?) else {
+                return Ok(None);
+            };
+            Some(load)
         };
+
         let Some(cur) = read_stat() else {
             return Ok(None);
         };
@@ -68,13 +81,13 @@ impl super::Block for Cpu {
         }
         let pct = total.saturating_sub(idle) * 100 / total;
 
-        Ok(Some(format!("⚙ {pct}% ({load})")))
+        Ok(Some(render(pct, load.as_deref())))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_loadavg, parse_stat};
+    use super::{parse_loadavg, parse_stat, render};
 
     #[test]
     fn stat_sums_the_aggregate_line() {
@@ -100,5 +113,15 @@ mod tests {
     #[test]
     fn loadavg_rejects_short_input() {
         assert!(parse_loadavg("1.24 0.88\n").is_none());
+    }
+
+    #[test]
+    fn full_appends_the_load_average() {
+        assert_eq!(render(12, Some("1.24 0.88 0.61")), "⚙ 12% (1.24 0.88 0.61)");
+    }
+
+    #[test]
+    fn compact_shows_the_percentage_alone() {
+        assert_eq!(render(12, None), "⚙ 12%");
     }
 }

@@ -7,7 +7,7 @@ impl Internet {
 }
 
 impl super::Block for Internet {
-    fn run(&self) -> Result<Option<String>, anyhow::Error> {
+    fn run(&self, _: super::Options) -> Result<Option<String>, anyhow::Error> {
         let tuple = std::fs::read_to_string("/proc/net/wireless")?
             .lines()
             .find(|s| s.starts_with('w'))

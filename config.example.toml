@@ -1,0 +1,25 @@
+# ministatus example configuration
+#
+# Copy to $XDG_CONFIG_HOME/ministatus/config.toml (~/.config/ministatus/config.toml).
+# Every value below is the built-in default, so this file behaves exactly like
+# having no config file at all. The file is re-read whenever it changes; there
+# is no need to restart ministatus.
+
+# Which blocks to render, in order
+blocks = ["news", "mailbox", "weather", "internet", "cpu", "memory", "battery", "pulse", "clock"]
+separator = " | "
+
+# Render every block in its short form. Five blocks have a compact variant:
+#   clock    🕛 (KW36) 09/05/2026 12:38 PM  ->  🕛 09/05 12:38
+#   cpu      ⚙ 3% (0.46 0.42 0.54)          ->  ⚙ 3%
+#   memory   🧠 9.0/31.0G (29%)             ->  🧠 9.0G
+#   weather  ☂️ 49% ❄ 18° ☀️ 26°            ->  ☂️49% 18/26°
+#   battery  🔋 72% (9.59W)                 ->  🔋 72%
+compact = false
+
+# Per-block overrides of the settings above. A block without a table, or with a
+# table that omits a key, follows the global value.
+#
+#   compact = true
+#   [block.clock]
+#   compact = false
