@@ -6,7 +6,7 @@
 # is no need to restart ministatus.
 
 # Which blocks to render, in order
-blocks = ["news", "mailbox", "weather", "internet", "cpu", "memory", "battery", "pulse", "clock"]
+blocks = ["news", "weather", "internet", "cpu", "memory", "battery", "pulse", "clock"]
 separator = " | "
 
 # Render every block in its short form. Five blocks have a compact variant:
