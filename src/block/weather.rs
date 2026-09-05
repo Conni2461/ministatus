@@ -7,7 +7,8 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Deserializer};
 
 const REFRESH: Duration = Duration::from_hours(4);
-const RETRY: Duration = Duration::from_hours(1);
+const FIRST_RETRY: Duration = Duration::from_mins(1);
+const MAX_RETRY: Duration = Duration::from_hours(1);
 
 pub fn deserialize_number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
 where
@@ -62,6 +63,7 @@ pub struct Weather {
     data: Arc<RwLock<Option<Data>>>,
 
     next: Arc<Mutex<Instant>>,
+    backoff: Arc<Mutex<Duration>>,
     fetching: Arc<AtomicBool>,
 }
 
@@ -102,10 +104,20 @@ fn get_weather_data(agent: &ureq::Agent) -> Result<Option<Data>, anyhow::Error> 
     }))
 }
 
+fn next_delay(backoff: &mut Duration, ok: bool) -> Duration {
+    if ok {
+        *backoff = FIRST_RETRY;
+        return REFRESH;
+    }
+    let delay = *backoff;
+    *backoff = (delay * 2).min(MAX_RETRY);
+    delay
+}
+
 impl Weather {
     pub fn new() -> Self {
         let agent: ureq::Agent = ureq::Agent::config_builder()
-            .timeout_global(Some(std::time::Duration::from_secs(2)))
+            .timeout_global(Some(Duration::from_secs(10)))
             .tls_config(
                 ureq::tls::TlsConfig::builder()
                     .provider(ureq::tls::TlsProvider::Rustls)
@@ -119,6 +131,7 @@ impl Weather {
             data: Arc::new(RwLock::new(None)),
 
             next: Arc::new(Mutex::new(Instant::now())),
+            backoff: Arc::new(Mutex::new(FIRST_RETRY)),
             fetching: Arc::new(AtomicBool::new(false)),
         }
     }
@@ -136,25 +149,33 @@ impl Weather {
 
         let data = self.data.clone();
         let next = self.next.clone();
+        let backoff = self.backoff.clone();
         let fetching = self.fetching.clone();
         let agent = self.agent.clone();
 
         std::thread::spawn(move || {
             let new = match get_weather_data(&agent) {
-                Ok(v) => v,
+                Ok(Some(v)) => Some(v),
+                Ok(None) => {
+                    eprintln!("weather response held no usable hourly readings");
+                    None
+                }
                 Err(e) => {
                     eprintln!("failed to retrieve weather data: {e}");
                     None
                 }
             };
 
-            let delay = if new.is_some() {
-                if let Ok(mut w) = data.write() {
-                    *w = new;
-                }
-                REFRESH
-            } else {
-                RETRY
+            let ok = new.is_some();
+            if let Some(new) = new
+                && let Ok(mut w) = data.write()
+            {
+                *w = Some(new);
+            }
+
+            let delay = match backoff.lock() {
+                Ok(mut b) => next_delay(&mut b, ok),
+                Err(_) => MAX_RETRY,
             };
             if let Ok(mut n) = next.lock() {
                 *n = Instant::now() + delay;
@@ -184,13 +205,16 @@ impl super::Block for Weather {
     }
 
     fn interval(&self) -> Duration {
-        Duration::from_mins(1)
+        match self.data.read() {
+            Ok(d) if d.is_some() => Duration::from_mins(1),
+            _ => super::TICK,
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Data, render};
+    use super::{Data, Duration, FIRST_RETRY, MAX_RETRY, REFRESH, next_delay, render};
     use crate::block::Options;
 
     const SAMPLE: Data = Data {
@@ -207,5 +231,33 @@ mod tests {
     #[test]
     fn compact_collapses_the_temperatures_into_a_range() {
         assert_eq!(render(SAMPLE, Options { compact: true }), "☂️ 20% 12/24°");
+    }
+
+    #[test]
+    fn a_cold_start_failure_retries_within_the_minute() {
+        let mut backoff = FIRST_RETRY;
+        assert_eq!(next_delay(&mut backoff, false), FIRST_RETRY);
+    }
+
+    #[test]
+    fn repeated_failures_back_off_and_settle_at_the_cap() {
+        let mut backoff = FIRST_RETRY;
+        let mut seen = Vec::new();
+        for _ in 0..10 {
+            seen.push(next_delay(&mut backoff, false));
+        }
+        assert_eq!(seen[0], Duration::from_mins(1));
+        assert_eq!(seen[1], Duration::from_mins(2));
+        assert_eq!(seen[2], Duration::from_mins(4));
+        assert_eq!(*seen.last().unwrap(), MAX_RETRY);
+        assert!(seen.windows(2).all(|w| w[0] <= w[1]));
+    }
+
+    #[test]
+    fn a_success_returns_the_long_refresh_and_clears_the_backoff() {
+        let mut backoff = MAX_RETRY;
+        assert_eq!(next_delay(&mut backoff, true), REFRESH);
+        assert_eq!(backoff, FIRST_RETRY);
+        assert_eq!(next_delay(&mut backoff, false), FIRST_RETRY);
     }
 }
