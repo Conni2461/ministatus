@@ -15,7 +15,7 @@ in pkgs.mkShell {
     rustPackages.rustfmt
   ];
   buildInputs = with pkgs; [
-    xorg.libX11
+    libX11
     sqlite
     libpulseaudio
   ];
