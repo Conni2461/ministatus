@@ -9,7 +9,6 @@ use crate::config::Config;
 
 mod block;
 mod config;
-mod shared;
 mod xorg;
 
 struct Slot {

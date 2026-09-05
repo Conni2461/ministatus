@@ -1,35 +1,59 @@
-use std::sync::{Arc, RwLock, mpsc};
+use std::sync::{Arc, RwLock};
+use std::time::{Duration, Instant};
 
 use libpulse_binding::{
     callbacks::ListResult,
     context::{
         Context, FlagSet, State,
-        introspect::{ServerInfo, SinkInfo},
-        subscribe::{Facility, InterestMaskSet},
+        introspect::{Introspector, SinkInfo},
+        subscribe::{Facility, InterestMaskSet, Operation},
     },
     mainloop::threaded::Mainloop,
     proplist::{Proplist, properties},
     volume::Volume,
 };
 
-use crate::shared::Shared;
+const DEFAULT_SINK: &str = "@DEFAULT_SINK@";
 
-#[derive(Debug)]
-struct TxState {
-    pub volume: u32,
-    pub mute: bool,
-}
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
+const CONNECT_POLL: Duration = Duration::from_millis(10);
 
-enum TxMessage {
-    DefaultSinkChange(String),
-    SinkValueChange { val: TxState, name: String },
+#[derive(Debug, Default)]
+struct SinkState {
+    volume: u32,
+    mute: bool,
 }
 
 pub struct Pulse {
-    mainloop: Shared<Mainloop>,
-    context: Shared<Context>,
+    context: Context,
+    mainloop: Mainloop,
 
-    state: Arc<RwLock<TxState>>,
+    state: Arc<RwLock<SinkState>>,
+}
+
+fn store_sink(state: &RwLock<SinkState>, result: &ListResult<&SinkInfo<'_>>) {
+    let ListResult::Item(item) = result else {
+        return;
+    };
+
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::cast_precision_loss
+    )]
+    let volume = ((item.volume.avg().0 as f32 / Volume::NORMAL.0 as f32) * 100.).round() as u32;
+
+    if let Ok(mut w) = state.write() {
+        *w = SinkState {
+            volume,
+            mute: item.mute,
+        };
+    }
+}
+
+fn query_default_sink(introspect: &Introspector, state: &Arc<RwLock<SinkState>>) {
+    let state = state.clone();
+    introspect.get_sink_info_by_name(DEFAULT_SINK, move |res| store_sink(&state, &res));
 }
 
 impl Pulse {
@@ -40,195 +64,133 @@ impl Pulse {
             .set_str(properties::APPLICATION_NAME, "ministatus")
             .map_err(|()| anyhow::anyhow!("Failed to set APPLICATION_NAME"))?;
 
-        let mainloop =
-            Shared::new(Mainloop::new().ok_or_else(|| anyhow::anyhow!("Failed to init Mainloop"))?);
+        let mainloop = Mainloop::new().ok_or_else(|| anyhow::anyhow!("Failed to init Mainloop"))?;
+        let context = Context::new_with_proplist(&mainloop, "ministatus context", &proplist)
+            .ok_or_else(|| anyhow::anyhow!("Failed to init Context"))?;
 
-        let context = Shared::new(
-            Context::new_with_proplist(&*mainloop.borrow(), "ministatus context", &proplist)
-                .ok_or_else(|| anyhow::anyhow!("Failed to init Context"))?,
-        );
-
-        let s = Self {
-            mainloop,
+        let mut s = Self {
             context,
-            state: Arc::new(RwLock::new(TxState {
-                volume: 0,
-                mute: false,
-            })),
+            mainloop,
+            state: Arc::new(RwLock::new(SinkState::default())),
         };
         s.connect()?;
+        s.subscribe();
 
         Ok(s)
     }
 
-    fn connect(&self) -> Result<(), anyhow::Error> {
-        let mut mainloop = self.mainloop.borrow_mut();
-        let mut ctx = self.context.borrow_mut();
+    fn connect(&mut self) -> Result<(), anyhow::Error> {
+        self.context.connect(None, FlagSet::NOFLAGS, None)?;
 
-        let mainloop_shr_ref = self.mainloop.clone_rc();
-        let ctx_shr_ref = self.context.clone_rc();
+        self.mainloop.lock();
+        if let Err(e) = self.mainloop.start() {
+            self.mainloop.unlock();
+            return Err(e.into());
+        }
 
-        ctx.set_state_callback(Some(Box::new(move || {
-            match unsafe { (*ctx_shr_ref.as_ptr()).get_state() } {
-                State::Ready | State::Failed | State::Terminated => unsafe {
-                    (*mainloop_shr_ref.as_ptr()).signal(false);
-                },
-                _ => {}
-            }
-        })));
-
-        ctx.connect(None, FlagSet::NOFLAGS, None)?;
-
-        mainloop.lock();
-        mainloop.start()?;
-
-        loop {
-            match ctx.get_state() {
-                State::Ready => {
-                    ctx.set_state_callback(None);
-                    mainloop.unlock();
-                    break;
-                }
+        let deadline = Instant::now() + CONNECT_TIMEOUT;
+        let outcome = loop {
+            match self.context.get_state() {
+                State::Ready => break Ok(()),
                 State::Failed | State::Terminated => {
-                    eprintln!("Context state failed/terminated, quitting...");
-                    mainloop.unlock();
-                    mainloop.stop();
-                    panic!("Pulse session terminated.");
+                    break Err(anyhow::anyhow!("Pulse session terminated"));
+                }
+                _ if Instant::now() >= deadline => {
+                    break Err(anyhow::anyhow!(
+                        "Pulse server did not answer within {CONNECT_TIMEOUT:?}"
+                    ));
                 }
                 _ => {
-                    mainloop.wait();
+                    self.mainloop.unlock();
+                    std::thread::sleep(CONNECT_POLL);
+                    self.mainloop.lock();
                 }
             }
-        }
-
-        drop(ctx);
-        drop(mainloop);
-
-        self.subscribe();
-
-        Ok(())
+        };
+        self.mainloop.unlock();
+        outcome
     }
 
-    fn subscribe(&self) {
-        fn tx_server(tx: &mpsc::Sender<TxMessage>, result: &ServerInfo<'_>) {
-            if let Some(n) = &result.default_sink_name {
-                tx.send(TxMessage::DefaultSinkChange(n.to_string()))
-                    .unwrap();
-            }
-        }
+    fn subscribe(&mut self) {
+        self.mainloop.lock();
 
-        fn tx_sink(tx: &mpsc::Sender<TxMessage>, result: &ListResult<&SinkInfo<'_>>) {
-            if let ListResult::Item(item) = result
-                && let Some(name) = &item.name
-            {
-                #[allow(
-                    clippy::cast_possible_truncation,
-                    clippy::cast_sign_loss,
-                    clippy::cast_precision_loss
-                )]
-                let volume =
-                    ((item.volume.avg().0 as f32 / Volume::NORMAL.0 as f32) * 100.).round() as u32;
-                tx.send(TxMessage::SinkValueChange {
-                    val: TxState {
-                        volume,
-                        mute: item.mute,
-                    },
-                    name: name.to_string(),
-                })
-                .unwrap();
-            }
-        }
-
-        let mut mainloop = self.mainloop.borrow_mut();
-        let mut ctx = self.context.borrow_mut();
-        mainloop.lock();
-
-        let introspect = ctx.introspect();
-        let (tx, rx) = mpsc::channel::<TxMessage>();
-
-        let tx2 = tx.clone();
-        introspect.get_sink_info_by_name("@DEFAULT_SINK@", move |res| tx_sink(&tx2, &res));
-
-        let tx2 = tx.clone();
-        ctx.subscribe(InterestMaskSet::SERVER | InterestMaskSet::SINK, |_| ());
-        ctx.set_subscribe_callback(Some(Box::new(move |fac, op, index| {
-            let tx2 = tx2.clone();
-
-            if op == Some(libpulse_binding::context::subscribe::Operation::Changed) {
-                match fac {
-                    Some(Facility::Server) => {
-                        introspect.get_server_info(move |res| tx_server(&tx2, res));
-                    }
-                    Some(Facility::Sink) => {
-                        introspect.get_sink_info_by_index(index, move |res| tx_sink(&tx2, &res));
-                    }
-                    _ => (),
-                }
-            }
-        })));
+        let introspect = self.context.introspect();
+        query_default_sink(&introspect, &self.state);
 
         let state = self.state.clone();
-        let introspect = ctx.introspect();
-        std::thread::spawn(move || {
-            let mut default_sink_name: Option<String> = None;
-            loop {
-                let tx = tx.clone();
-                let state = state.clone();
-
-                match rx.recv() {
-                    Ok(TxMessage::DefaultSinkChange(v)) => {
-                        default_sink_name = Some(v);
-                        introspect.get_sink_info_by_name(
-                            default_sink_name.as_ref().unwrap(),
-                            move |res| tx_sink(&tx, &res),
-                        );
-                    }
-                    Ok(TxMessage::SinkValueChange { val, name }) => {
-                        if default_sink_name.is_none() {
-                            default_sink_name = Some(name);
-                        } else if default_sink_name != Some(name) {
-                            continue;
-                        }
-                        if let Ok(mut w) = state.write() {
-                            *w = val;
-                        }
-                    }
-                    Err(_) => (),
+        self.context
+            .subscribe(InterestMaskSet::SERVER | InterestMaskSet::SINK, |_| ());
+        self.context
+            .set_subscribe_callback(Some(Box::new(move |fac, op, _| {
+                if op == Some(Operation::Changed)
+                    && matches!(fac, Some(Facility::Server | Facility::Sink))
+                {
+                    query_default_sink(&introspect, &state);
                 }
-            }
-        });
+            })));
 
-        mainloop.unlock();
-    }
-
-    fn cleanup(&self) {
-        let mut ctx = self.context.borrow_mut();
-        let mut mainloop = self.mainloop.borrow_mut();
-
-        ctx.disconnect();
-        mainloop.stop();
+        self.mainloop.unlock();
     }
 }
 
 impl Drop for Pulse {
     fn drop(&mut self) {
-        self.cleanup();
+        self.context.disconnect();
+        self.mainloop.stop();
     }
+}
+
+fn render(s: &SinkState) -> String {
+    if s.mute {
+        return "🔇".into();
+    }
+    let symbol = if s.volume > 70 {
+        "🔊"
+    } else if s.volume > 30 {
+        "🔉"
+    } else {
+        "🔈"
+    };
+    format!("{symbol} {}%", s.volume)
 }
 
 impl super::Block for Pulse {
     fn run(&mut self, _: super::Options) -> Result<Option<String>, anyhow::Error> {
-        let r = self.state.read().unwrap();
-        if r.mute {
-            return Ok(Some("🔇".into()));
-        }
-        let symbol = if r.volume > 70 {
-            "🔊"
-        } else if r.volume > 30 {
-            "🔉"
-        } else {
-            "🔈"
+        let Ok(state) = self.state.read() else {
+            return Ok(None);
         };
-        Ok(Some(format!("{symbol} {}%", r.volume)))
+        Ok(Some(render(&state)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{SinkState, render};
+
+    #[test]
+    fn mute_hides_the_level() {
+        assert_eq!(
+            render(&SinkState {
+                volume: 80,
+                mute: true
+            }),
+            "🔇"
+        );
+    }
+
+    #[test]
+    fn the_speaker_icon_grows_with_the_volume() {
+        let at = |volume| {
+            render(&SinkState {
+                volume,
+                mute: false,
+            })
+        };
+        assert_eq!(at(0), "🔈 0%");
+        assert_eq!(at(30), "🔈 30%");
+        assert_eq!(at(31), "🔉 31%");
+        assert_eq!(at(70), "🔉 70%");
+        assert_eq!(at(71), "🔊 71%");
+        assert_eq!(at(100), "🔊 100%");
     }
 }
