@@ -145,7 +145,10 @@ mod tests {
 
     #[test]
     fn full_appends_the_load_average() {
-        assert_eq!(render(12, Some("1.24 0.88 0.61")), "⚙  12% (1.24 0.88 0.61)");
+        assert_eq!(
+            render(12, Some("1.24 0.88 0.61")),
+            "⚙  12% (1.24 0.88 0.61)"
+        );
     }
 
     #[test]
