@@ -23,3 +23,6 @@ serde = { version = "1.0.202", features = ["derive"] }
 
 # pulse
 libpulse-binding = "2"
+
+# config
+toml = { version = "1", default-features = false, features = ["std", "parse", "serde"] }

@@ -21,3 +21,27 @@ pub use weather::Weather;
 pub trait Block {
     fn run(&self) -> Result<Option<String>, anyhow::Error>;
 }
+
+pub const ALL: [&str; 9] = [
+    "news", "mailbox", "weather", "internet", "cpu", "memory", "battery", "pulse", "clock",
+];
+
+pub fn canonical(name: &str) -> Option<&'static str> {
+    ALL.into_iter().find(|v| *v == name)
+}
+
+pub fn build(name: &str, home: &str) -> Option<Result<Box<dyn Block>, anyhow::Error>> {
+    let block: Result<Box<dyn Block>, anyhow::Error> = match canonical(name)? {
+        "news" => News::new(home).map(|v| Box::new(v) as Box<dyn Block>),
+        "mailbox" => Mailbox::new(home).map(|v| Box::new(v) as Box<dyn Block>),
+        "weather" => Ok(Box::new(Weather::new())),
+        "internet" => Ok(Box::new(Internet::new())),
+        "cpu" => Ok(Box::new(Cpu::new())),
+        "memory" => Ok(Box::new(Memory::new())),
+        "battery" => Ok(Box::new(Battery::new())),
+        "pulse" => Pulse::new().map(|v| Box::new(v) as Box<dyn Block>),
+        "clock" => Ok(Box::new(Clock::new())),
+        _ => unreachable!("canonical only returns names listed in ALL"),
+    };
+    Some(block)
+}
