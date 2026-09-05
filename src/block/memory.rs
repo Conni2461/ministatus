@@ -1,22 +1,39 @@
-pub struct Memory {}
+use std::path::Path;
+use std::time::Duration;
+
+use super::read_into;
+
+const MEMINFO: &str = "/proc/meminfo";
+
+pub struct Memory {
+    buf: Vec<u8>,
+}
 
 impl Memory {
     pub const fn new() -> Self {
-        Self {}
+        Self { buf: Vec::new() }
     }
 }
 
 fn parse_meminfo(s: &str) -> Option<(u64, u64)> {
-    let field = |name: &str| {
-        s.lines()
-            .find(|l| l.starts_with(name))?
-            .split_whitespace()
-            .nth(1)?
-            .parse::<u64>()
-            .ok()
-    };
+    let (mut total, mut available) = (None, None);
 
-    Some((field("MemTotal:")?, field("MemAvailable:")?))
+    for line in s.lines() {
+        let slot = if line.starts_with("MemTotal:") {
+            &mut total
+        } else if line.starts_with("MemAvailable:") {
+            &mut available
+        } else {
+            continue;
+        };
+        *slot = line.split_whitespace().nth(1)?.parse::<u64>().ok();
+
+        if total.is_some() && available.is_some() {
+            break;
+        }
+    }
+
+    Some((total?, available?))
 }
 
 #[allow(clippy::cast_precision_loss)]
@@ -34,8 +51,8 @@ fn render(used: u64, total: u64, opts: super::Options) -> String {
 }
 
 impl super::Block for Memory {
-    fn run(&self, opts: super::Options) -> Result<Option<String>, anyhow::Error> {
-        let Some((total, available)) = parse_meminfo(&std::fs::read_to_string("/proc/meminfo")?)
+    fn run(&mut self, opts: super::Options) -> Result<Option<String>, anyhow::Error> {
+        let Some((total, available)) = parse_meminfo(read_into(Path::new(MEMINFO), &mut self.buf)?)
         else {
             return Ok(None);
         };
@@ -45,6 +62,10 @@ impl super::Block for Memory {
 
         let used = total.saturating_sub(available);
         Ok(Some(render(used, total, opts)))
+    }
+
+    fn interval(&self) -> Duration {
+        Duration::from_secs(2)
     }
 }
 
@@ -60,8 +81,20 @@ mod tests {
     }
 
     #[test]
+    fn meminfo_finds_the_fields_in_either_order() {
+        let s = "MemAvailable:   22801748 kB\nMemTotal:       32724116 kB\n";
+        assert_eq!(parse_meminfo(s), Some((32_724_116, 22_801_748)));
+    }
+
+    #[test]
     fn meminfo_rejects_input_without_available() {
         let s = "MemTotal:       32724116 kB\nMemFree:         1234567 kB\n";
+        assert!(parse_meminfo(s).is_none());
+    }
+
+    #[test]
+    fn meminfo_rejects_a_non_numeric_value() {
+        let s = "MemTotal:       kB\nMemAvailable:   22801748 kB\n";
         assert!(parse_meminfo(s).is_none());
     }
 

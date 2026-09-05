@@ -1,12 +1,13 @@
 use std::fmt::Display;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicI32, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, RwLock};
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Deserializer};
 
-// every 4h (timeout 1s)
-const TIMEOUT_TIME: i32 = 60 * 60 * 4;
+const REFRESH: Duration = Duration::from_hours(4);
+const RETRY: Duration = Duration::from_hours(1);
 
 pub fn deserialize_number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
 where
@@ -60,7 +61,8 @@ pub struct Weather {
     agent: ureq::Agent,
     data: Arc<RwLock<Option<Data>>>,
 
-    timeout: Arc<AtomicI32>,
+    next: Arc<Mutex<Instant>>,
+    fetching: Arc<AtomicBool>,
 }
 
 fn get_weather_data(agent: &ureq::Agent) -> Result<Option<Data>, anyhow::Error> {
@@ -112,48 +114,54 @@ impl Weather {
             .build()
             .into();
 
-        let data = match get_weather_data(&agent) {
-            Ok(v) => v,
-            Err(e) => {
-                eprintln!("failed to retrieve weather data: {e}");
-                None
-            }
-        };
-        let timeout = if data.is_some() {
-            AtomicI32::new(TIMEOUT_TIME)
-        } else {
-            // if first fetch is None try again 60 ticks later
-            AtomicI32::new(60)
-        };
-
         Self {
             agent,
-            data: Arc::new(RwLock::new(data)),
+            data: Arc::new(RwLock::new(None)),
 
-            timeout: Arc::new(timeout),
+            next: Arc::new(Mutex::new(Instant::now())),
+            fetching: Arc::new(AtomicBool::new(false)),
         }
     }
 
     fn refresh_data(&self) {
-        self.timeout.fetch_sub(1, Ordering::SeqCst);
-        if self.timeout.load(Ordering::Relaxed) == 0 {
-            let timeout = self.timeout.clone();
-
-            let d = self.data.clone();
-            let agent = self.agent.clone();
-            std::thread::spawn(move || {
-                let new = get_weather_data(&agent).unwrap_or_default();
-                if new.is_none() {
-                    // if refresh data is still None, move refresh time back to 3600 ticks aka 1h
-                    timeout.store(60 * 60, Ordering::Relaxed);
-                    return;
-                }
-
-                timeout.store(TIMEOUT_TIME, Ordering::Relaxed);
-                let mut w = d.write().unwrap();
-                *w = new;
-            });
+        if self.fetching.load(Ordering::Acquire) {
+            return;
         }
+        match self.next.lock() {
+            Ok(next) if Instant::now() < *next => return,
+            Ok(_) => (),
+            Err(_) => return,
+        }
+        self.fetching.store(true, Ordering::Release);
+
+        let data = self.data.clone();
+        let next = self.next.clone();
+        let fetching = self.fetching.clone();
+        let agent = self.agent.clone();
+
+        std::thread::spawn(move || {
+            let new = match get_weather_data(&agent) {
+                Ok(v) => v,
+                Err(e) => {
+                    eprintln!("failed to retrieve weather data: {e}");
+                    None
+                }
+            };
+
+            let delay = if new.is_some() {
+                if let Ok(mut w) = data.write() {
+                    *w = new;
+                }
+                REFRESH
+            } else {
+                RETRY
+            };
+            if let Ok(mut n) = next.lock() {
+                *n = Instant::now() + delay;
+            }
+
+            fetching.store(false, Ordering::Release);
+        });
     }
 }
 
@@ -166,12 +174,17 @@ fn render(d: Data, opts: super::Options) -> String {
 }
 
 impl super::Block for Weather {
-    fn run(&self, opts: super::Options) -> Result<Option<String>, anyhow::Error> {
+    fn run(&mut self, opts: super::Options) -> Result<Option<String>, anyhow::Error> {
         self.refresh_data();
-        self.data
-            .read()
-            .unwrap()
-            .map_or_else(|| Ok(None), |d| Ok(Some(render(d, opts))))
+
+        let Ok(data) = self.data.read() else {
+            return Ok(None);
+        };
+        Ok(data.map(|d| render(d, opts)))
+    }
+
+    fn interval(&self) -> Duration {
+        Duration::from_mins(1)
     }
 }
 

@@ -1,7 +1,27 @@
-use std::path::PathBuf;
+use std::borrow::Cow;
+use std::path::{Path, PathBuf};
+use std::time::Duration;
+
+struct Paths {
+    capacity: PathBuf,
+    current: PathBuf,
+    voltage: PathBuf,
+    status: PathBuf,
+}
+
+impl Paths {
+    fn new(base: &Path) -> Self {
+        Self {
+            capacity: base.join("capacity"),
+            current: base.join("current_now"),
+            voltage: base.join("voltage_now"),
+            status: base.join("status"),
+        }
+    }
+}
 
 pub struct Battery {
-    batteries: Vec<PathBuf>,
+    batteries: Vec<Paths>,
 }
 
 impl Battery {
@@ -14,12 +34,26 @@ impl Battery {
                     .into_string()
                     .is_ok_and(|x| x.starts_with("BAT"))
                 {
-                    batteries.push(ps.path());
+                    batteries.push(Paths::new(&ps.path()));
                 }
             }
         }
 
         Self { batteries }
+    }
+}
+
+fn read_number<T: std::str::FromStr>(path: &Path) -> Option<T> {
+    std::fs::read_to_string(path).ok()?.trim().parse().ok()
+}
+
+fn icon(status: &str) -> Cow<'static, str> {
+    match status {
+        "Discharging" => "🔋".into(),
+        "Charging" | "Not charging" => "🔌".into(),
+        "Unknown" => "♻️".into(),
+        "Full" => "⚡".into(),
+        o => Cow::Owned(o.to_owned()),
     }
 }
 
@@ -32,48 +66,33 @@ fn render(status: &str, cap: i32, watt: Option<f64>) -> String {
 }
 
 impl super::Block for Battery {
-    fn run(&self, opts: super::Options) -> Result<Option<String>, anyhow::Error> {
+    fn run(&mut self, opts: super::Options) -> Result<Option<String>, anyhow::Error> {
         if self.batteries.is_empty() {
             return Ok(None);
         }
 
         let mut out: Vec<String> = vec![];
         for bat in &self.batteries {
-            let cap = std::fs::read_to_string(bat.join("capacity"))
-                .ok()
-                .and_then(|v| v.trim().replace('$', "").parse::<i32>().ok());
-            let Some(cap) = cap else { continue };
+            let Some(cap) = read_number::<i32>(&bat.capacity) else {
+                continue;
+            };
 
-            let current = std::fs::read_to_string(bat.join("current_now"))
-                .ok()
-                .and_then(|v| v.trim().parse::<f64>().ok());
-            let voltage = std::fs::read_to_string(bat.join("voltage_now"))
-                .ok()
-                .and_then(|v| v.trim().parse::<f64>().ok());
-            let mut watt = if let (Some(current), Some(voltage)) = (current, voltage) {
-                Some((current * voltage) / 1_000_000_000_000.0)
-            } else {
+            let status = std::fs::read_to_string(&bat.status)?;
+            let status = status.trim();
+
+            let watt = if opts.compact || matches!(status, "Charging" | "Not charging") {
                 None
+            } else {
+                match (
+                    read_number::<f64>(&bat.current),
+                    read_number::<f64>(&bat.voltage),
+                ) {
+                    (Some(current), Some(voltage)) => Some((current * voltage) / 1e12),
+                    _ => None,
+                }
             };
 
-            let status = match std::fs::read_to_string(bat.join("status"))?
-                .trim()
-                .replace(',', "")
-                .as_str()
-            {
-                "Discharging" => "🔋".into(),
-                "Charging" | "Not charging" => {
-                    watt = None; // dont show watt if we are currently charging
-                    "🔌".into()
-                }
-                "Unknown" => "♻️".into(),
-                "Full" => "⚡".into(),
-                o => o.to_string(),
-            };
-            if opts.compact {
-                watt = None;
-            }
-            out.push(render(&status, cap, watt));
+            out.push(render(&icon(status), cap, watt));
         }
 
         if out.is_empty() {
@@ -82,11 +101,15 @@ impl super::Block for Battery {
             Ok(Some(out.join(" | ")))
         }
     }
+
+    fn interval(&self) -> Duration {
+        Duration::from_secs(5)
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::render;
+    use super::{icon, render};
 
     #[test]
     fn full_appends_the_wattage() {
@@ -102,5 +125,19 @@ mod tests {
     fn a_low_charge_is_marked_in_both_modes() {
         assert_eq!(render("🔋", 12, Some(12.34)), "🔋❗12% (12.34W)");
         assert_eq!(render("🔋", 12, None), "🔋❗12%");
+    }
+
+    #[test]
+    fn each_status_maps_to_its_own_icon() {
+        assert_eq!(icon("Discharging"), "🔋");
+        assert_eq!(icon("Charging"), "🔌");
+        assert_eq!(icon("Not charging"), "🔌");
+        assert_eq!(icon("Unknown"), "♻️");
+        assert_eq!(icon("Full"), "⚡");
+    }
+
+    #[test]
+    fn an_unrecognised_status_is_passed_through() {
+        assert_eq!(icon("Weird"), "Weird");
     }
 }

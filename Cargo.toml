@@ -4,15 +4,11 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
+toml = { version = "1", default-features = false, features = ["std", "parse", "serde"] }
 jiff = { version = "0.2", default-features = false, features = ["std", "tz-system", "tzdb-zoneinfo"] }
 anyhow = "1"
 x11 = { version = "2.21", default-features = false, features = ["xlib"] }
-
-# mailbox
-glob = "0.3"
 
 # news
 rusqlite = "0.40"
@@ -24,5 +20,7 @@ serde = { version = "1.0.202", features = ["derive"] }
 # pulse
 libpulse-binding = "2"
 
-# config
-toml = { version = "1", default-features = false, features = ["std", "parse", "serde"] }
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

@@ -2,8 +2,9 @@
 #![deny(clippy::pedantic)]
 
 use std::collections::HashMap;
+use std::time::Instant;
 
-use crate::block::Block;
+use crate::block::{Block, Options, TICK};
 use crate::config::Config;
 
 mod block;
@@ -15,10 +16,13 @@ struct Slot {
     name: &'static str,
     block: Box<dyn Block>,
     prev: Option<String>,
+    opts: Options,
+    due: Instant,
 }
 
 fn rebuild(cfg: &Config, live: Vec<Slot>, home: &str) -> Vec<Slot> {
     let mut old: HashMap<&'static str, Slot> = live.into_iter().map(|s| (s.name, s)).collect();
+    let now = Instant::now();
 
     cfg.blocks
         .iter()
@@ -27,7 +31,9 @@ fn rebuild(cfg: &Config, live: Vec<Slot>, home: &str) -> Vec<Slot> {
                 eprintln!("unknown block {name:?} in config, skipping");
                 return None;
             };
-            if let Some(slot) = old.remove(name) {
+            if let Some(mut slot) = old.remove(name) {
+                slot.opts = cfg.options(name);
+                slot.due = now;
                 return Some(slot);
             }
             match block::build(name, home)? {
@@ -35,6 +41,8 @@ fn rebuild(cfg: &Config, live: Vec<Slot>, home: &str) -> Vec<Slot> {
                     name,
                     block,
                     prev: None,
+                    opts: cfg.options(name),
+                    due: now,
                 }),
                 Err(e) => {
                     eprintln!("{name} disabled because of {e}");
@@ -58,8 +66,11 @@ fn main() -> Result<(), anyhow::Error> {
     });
     let mut blocks = rebuild(&cfg, Vec::new(), &home);
 
+    let mut shown: Option<String> = None;
+    let mut next_tick = Instant::now() + TICK;
+
     loop {
-        let now = std::time::Instant::now();
+        let start = Instant::now();
 
         let mtime = config::mtime(&path);
         if mtime != seen {
@@ -73,31 +84,44 @@ fn main() -> Result<(), anyhow::Error> {
             }
         }
 
-        let mut out: Vec<String> = vec![];
         for slot in &mut blocks {
-            match slot.block.run(cfg.options(slot.name)) {
-                Ok(Some(v)) => {
-                    out.push(v.clone());
-                    slot.prev = Some(v);
-                }
-                Ok(None) => (),
-                Err(_) => {
-                    if let Some(v) = &slot.prev {
-                        out.push(v.clone());
+            if slot.due > start {
+                continue;
+            }
+            slot.due = start + slot.block.interval();
+            if let Ok(v) = slot.block.run(slot.opts) {
+                slot.prev = v;
+            }
+        }
+
+        let text = blocks
+            .iter()
+            .filter_map(|s| s.prev.as_deref())
+            .collect::<Vec<_>>()
+            .join(&cfg.separator);
+
+        if debug {
+            eprintln!("Elapsed: {:.2?}", start.elapsed());
+        }
+
+        if shown.as_deref() != Some(text.as_str()) {
+            match &window {
+                Some(w) => {
+                    if let Err(e) = w.set_title(&text) {
+                        eprintln!("failed to write to window: {e}");
                     }
                 }
+                None => println!("{text}"),
             }
+            shown = Some(text);
         }
-        let text = out.join(&cfg.separator);
-        eprintln!("Elapsed: {:.2?}", now.elapsed());
-        match &window {
-            Some(w) => {
-                if let Err(e) = w.set_title(&text) {
-                    eprintln!("failed to write to window: {e}");
-                }
-            }
-            None => println!("{}", &text),
+
+        let now = Instant::now();
+        if next_tick <= now {
+            next_tick = now + TICK;
+        } else {
+            std::thread::sleep(next_tick - now);
+            next_tick += TICK;
         }
-        std::thread::sleep(std::time::Duration::from_secs(1));
     }
 }

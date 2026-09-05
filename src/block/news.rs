@@ -1,7 +1,10 @@
+use std::path::PathBuf;
+use std::time::Duration;
+
 const STMT: &str = "SELECT Count(*) FROM rss_item WHERE unread = 1;";
 
 pub struct News {
-    home: String,
+    update: PathBuf,
     conn: rusqlite::Connection,
 }
 
@@ -13,7 +16,7 @@ impl News {
         }
 
         Ok(Self {
-            home: home.to_owned(),
+            update: PathBuf::from(format!("{home}/.config/newsboat/.update")),
             conn: rusqlite::Connection::open_with_flags(
                 dbfile,
                 rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
@@ -23,16 +26,24 @@ impl News {
 }
 
 impl super::Block for News {
-    fn run(&self, _: super::Options) -> Result<Option<String>, anyhow::Error> {
-        if std::path::Path::new(&format!("{}/.config/newsboat/.update", self.home)).exists() {
+    fn run(&mut self, _: super::Options) -> Result<Option<String>, anyhow::Error> {
+        if self.update.exists() {
             return Ok(Some("📰 🔃".into()));
         }
 
-        let news = self.conn.query_row(STMT, [], |row| row.get::<_, i32>(0))?;
+        let news = self
+            .conn
+            .prepare_cached(STMT)?
+            .query_row([], |row| row.get::<_, i32>(0))?;
+
         if news == 0 {
             Ok(None)
         } else {
             Ok(Some(format!("📰 {news}")))
         }
+    }
+
+    fn interval(&self) -> Duration {
+        Duration::from_secs(15)
     }
 }

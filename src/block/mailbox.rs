@@ -1,24 +1,28 @@
+use std::path::PathBuf;
+use std::time::Duration;
+
 pub struct Mailbox {
-    pattern: String,
+    root: PathBuf,
 }
 
 impl Mailbox {
     pub fn new(home: &str) -> Result<Self, anyhow::Error> {
-        if !std::path::Path::new(&format!("{home}/.local/share/mail/")).exists() {
+        let root = PathBuf::from(format!("{home}/.local/share/mail"));
+        if !root.exists() {
             return Err(anyhow::anyhow!("mailbox does not exist"));
         }
 
-        Ok(Self {
-            pattern: format!("{home}/.local/share/mail/*/INBOX/new/*"),
-        })
+        Ok(Self { root })
     }
 }
 
 impl super::Block for Mailbox {
-    fn run(&self, _: super::Options) -> Result<Option<String>, anyhow::Error> {
-        let mut c = 0;
-        for _ in glob::glob(&self.pattern)? {
-            c += 1;
+    fn run(&mut self, _: super::Options) -> Result<Option<String>, anyhow::Error> {
+        let mut c = 0usize;
+        for account in std::fs::read_dir(&self.root)?.flatten() {
+            if let Ok(dir) = std::fs::read_dir(account.path().join("INBOX/new")) {
+                c += dir.count();
+            }
         }
 
         if c == 0 {
@@ -26,5 +30,9 @@ impl super::Block for Mailbox {
         } else {
             Ok(Some(format!("📬 {c}")))
         }
+    }
+
+    fn interval(&self) -> Duration {
+        Duration::from_secs(15)
     }
 }

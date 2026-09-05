@@ -1,3 +1,7 @@
+use std::io::Read;
+use std::path::Path;
+use std::time::Duration;
+
 mod battery;
 mod clock;
 mod cpu;
@@ -18,13 +22,25 @@ pub use news::News;
 pub use pulse::Pulse;
 pub use weather::Weather;
 
+pub const TICK: Duration = Duration::from_secs(1);
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Options {
     pub compact: bool,
 }
 
 pub trait Block {
-    fn run(&self, opts: Options) -> Result<Option<String>, anyhow::Error>;
+    fn run(&mut self, opts: Options) -> Result<Option<String>, anyhow::Error>;
+
+    fn interval(&self) -> Duration {
+        TICK
+    }
+}
+
+fn read_into<'a>(path: &Path, buf: &'a mut Vec<u8>) -> Result<&'a str, anyhow::Error> {
+    buf.clear();
+    std::fs::File::open(path)?.read_to_end(buf)?;
+    Ok(std::str::from_utf8(buf)?)
 }
 
 pub const ALL: [&str; 9] = [

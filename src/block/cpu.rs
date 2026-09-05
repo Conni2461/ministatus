@@ -1,4 +1,9 @@
-use std::sync::RwLock;
+use std::path::Path;
+
+use super::read_into;
+
+const STAT: &str = "/proc/stat";
+const LOADAVG: &str = "/proc/loadavg";
 
 #[derive(Debug, Clone, Copy)]
 struct Sample {
@@ -7,42 +12,54 @@ struct Sample {
 }
 
 pub struct Cpu {
-    prev: RwLock<Option<Sample>>,
+    prev: Option<Sample>,
+    stat: Vec<u8>,
+    loadavg: Vec<u8>,
 }
 
 fn parse_stat(s: &str) -> Option<Sample> {
-    let fields = s
-        .lines()
-        .find(|l| l.starts_with("cpu "))?
-        .split_whitespace()
-        .skip(1)
-        .map(|v| v.parse::<u64>().ok())
-        .collect::<Option<Vec<_>>>()?;
+    let line = s.lines().find(|l| l.starts_with("cpu "))?;
 
-    let idle = fields.get(3)? + fields.get(4)?;
-    Some(Sample {
-        total: fields.iter().sum(),
-        idle,
-    })
+    let (mut total, mut idle, mut seen) = (0u64, 0u64, 0usize);
+    for (i, field) in line.split_whitespace().skip(1).enumerate() {
+        let v = field.parse::<u64>().ok()?;
+        total += v;
+        if i == 3 || i == 4 {
+            idle += v;
+        }
+        seen = i + 1;
+    }
+    if seen < 5 {
+        return None;
+    }
+
+    Some(Sample { total, idle })
 }
 
 fn parse_loadavg(s: &str) -> Option<String> {
-    let load = s.split_whitespace().take(3).collect::<Vec<_>>();
-    if load.len() == 3 {
-        Some(load.join(" "))
-    } else {
-        None
-    }
-}
+    let mut fields = s.split_whitespace();
+    let (one, five, fifteen) = (fields.next()?, fields.next()?, fields.next()?);
 
-fn read_stat() -> Option<Sample> {
-    parse_stat(&std::fs::read_to_string("/proc/stat").ok()?)
+    let mut out = String::with_capacity(one.len() + five.len() + fifteen.len() + 2);
+    out.push_str(one);
+    out.push(' ');
+    out.push_str(five);
+    out.push(' ');
+    out.push_str(fifteen);
+    Some(out)
 }
 
 impl Cpu {
     pub fn new() -> Self {
+        let mut stat = Vec::new();
+        let prev = read_into(Path::new(STAT), &mut stat)
+            .ok()
+            .and_then(parse_stat);
+
         Self {
-            prev: RwLock::new(read_stat()),
+            prev,
+            stat,
+            loadavg: Vec::new(),
         }
     }
 }
@@ -55,22 +72,23 @@ fn render(pct: u64, load: Option<&str>) -> String {
 }
 
 impl super::Block for Cpu {
-    fn run(&self, opts: super::Options) -> Result<Option<String>, anyhow::Error> {
+    fn run(&mut self, opts: super::Options) -> Result<Option<String>, anyhow::Error> {
+        // owned, so the borrow of `self.loadavg` ends before `self.prev` is touched
         let load = if opts.compact {
             None
         } else {
-            let Some(load) = parse_loadavg(&std::fs::read_to_string("/proc/loadavg")?) else {
+            let s = read_into(Path::new(LOADAVG), &mut self.loadavg)?;
+            let Some(load) = parse_loadavg(s) else {
                 return Ok(None);
             };
             Some(load)
         };
 
-        let Some(cur) = read_stat() else {
+        let Some(cur) = parse_stat(read_into(Path::new(STAT), &mut self.stat)?) else {
             return Ok(None);
         };
 
-        let prev = self.prev.write().unwrap().replace(cur);
-        let Some(prev) = prev else {
+        let Some(prev) = self.prev.replace(cur) else {
             return Ok(None);
         };
 
@@ -100,6 +118,16 @@ mod tests {
     #[test]
     fn stat_rejects_input_without_an_aggregate_line() {
         assert!(parse_stat("cpu0 50 10 15 400 20 0 5 0 0 0\n").is_none());
+    }
+
+    #[test]
+    fn stat_rejects_a_line_too_short_to_hold_idle_and_iowait() {
+        assert!(parse_stat("cpu  100 20 30 800\n").is_none());
+    }
+
+    #[test]
+    fn stat_rejects_a_non_numeric_field() {
+        assert!(parse_stat("cpu  100 20 x 800 40\n").is_none());
     }
 
     #[test]
