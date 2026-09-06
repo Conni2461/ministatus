@@ -1,5 +1,12 @@
-#![deny(clippy::all)]
-#![deny(clippy::pedantic)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::expect_used,
+        clippy::indexing_slicing,
+        clippy::panic,
+        clippy::unwrap_used
+    )
+)]
 
 use std::collections::HashMap;
 use std::time::Instant;
