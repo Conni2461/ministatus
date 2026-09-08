@@ -41,7 +41,7 @@ fn render(up: bool, quality: f32) -> String {
 }
 
 impl super::Block for Internet {
-    fn run(&mut self, _: super::Options) -> Result<Option<String>, anyhow::Error> {
+    fn run(&mut self, _: &super::Options) -> Result<Option<String>, anyhow::Error> {
         let s = read_into(Path::new(WIRELESS), &mut self.wireless)?;
         let Some((id, quality)) = parse_wireless(s) else {
             return Ok(None);

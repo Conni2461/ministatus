@@ -72,7 +72,7 @@ fn render(pct: u64, load: Option<&str>) -> String {
 }
 
 impl super::Block for Cpu {
-    fn run(&mut self, opts: super::Options) -> Result<Option<String>, anyhow::Error> {
+    fn run(&mut self, opts: &super::Options) -> Result<Option<String>, anyhow::Error> {
         // owned, so the borrow of `self.loadavg` ends before `self.prev` is touched
         let load = if opts.compact {
             None

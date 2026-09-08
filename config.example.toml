@@ -6,13 +6,14 @@
 # is no need to restart ministatus.
 
 # Which blocks to render, in order
-blocks = ["news", "weather", "internet", "cpu", "memory", "battery", "pulse", "clock"]
+blocks = ["news", "weather", "internet", "cpu", "memory", "disk", "battery", "pulse", "clock"]
 separator = " | "
 
-# Render every block in its short form. Five blocks have a compact variant:
+# Render every block in its short form. Six blocks have a compact variant:
 #   clock    🕛 (KW36) 09/05/2026 12:38 PM  ->  🕛 09/05 12:38
 #   cpu      ⚙ 3% (0.46 0.42 0.54)          ->  ⚙ 3%
 #   memory   🧠 9.0/31.0G (29%)             ->  🧠 9.0G
+#   disk     💾 213.9/466.3G (45%)          ->  💾 213.9G
 #   weather  ☂️ 49% ❄ 18° ☀️ 26°            ->  ☂️49% 18/26°
 #   battery  🔋 72% (9.59W)                 ->  🔋 72%
 compact = false
@@ -23,3 +24,9 @@ compact = false
 #   compact = true
 #   [block.clock]
 #   compact = false
+#
+# The disk block also takes the filesystem to report on. Its target defaults
+# to "/".
+#
+#   [block.disk]
+#   target = "/home"

@@ -10,6 +10,7 @@ const DEFAULT_SEPARATOR: &str = " | ";
 #[serde(deny_unknown_fields)]
 pub struct BlockConfig {
     pub compact: Option<bool>,
+    pub target: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -46,12 +47,10 @@ impl Default for Config {
 
 impl Config {
     pub fn options(&self, name: &str) -> block::Options {
+        let table = self.block.get(name);
         block::Options {
-            compact: self
-                .block
-                .get(name)
-                .and_then(|b| b.compact)
-                .unwrap_or(self.compact),
+            compact: table.and_then(|b| b.compact).unwrap_or(self.compact),
+            target: table.and_then(|b| b.target.clone()),
         }
     }
 
@@ -136,6 +135,19 @@ mod tests {
     fn a_table_without_compact_falls_back_to_the_global_flag() {
         let c: Config = toml::from_str("compact = true\n[block.cpu]\n").unwrap();
         assert!(c.options("cpu").compact);
+    }
+
+    #[test]
+    fn disk_target_defaults_to_none_and_the_block_fills_it_in() {
+        let c: Config = toml::from_str("").unwrap();
+        assert_eq!(c.options("disk").target, None);
+    }
+
+    #[test]
+    fn a_disk_table_can_set_a_target() {
+        let c: Config = toml::from_str("[block.disk]\ntarget = \"/home\"\n").unwrap();
+        assert_eq!(c.options("disk").target.as_deref(), Some("/home"));
+        assert_eq!(c.options("cpu").target, None);
     }
 
     #[test]

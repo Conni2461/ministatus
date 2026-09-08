@@ -95,7 +95,7 @@ fn main() -> Result<(), anyhow::Error> {
                 continue;
             }
             slot.due = start + slot.block.interval();
-            if let Ok(v) = slot.block.run(slot.opts) {
+            if let Ok(v) = slot.block.run(&slot.opts) {
                 slot.prev = v;
             }
         }

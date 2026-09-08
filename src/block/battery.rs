@@ -66,7 +66,7 @@ fn render(status: &str, cap: i32, watt: Option<f64>) -> String {
 }
 
 impl super::Block for Battery {
-    fn run(&mut self, opts: super::Options) -> Result<Option<String>, anyhow::Error> {
+    fn run(&mut self, opts: &super::Options) -> Result<Option<String>, anyhow::Error> {
         if self.batteries.is_empty() {
             return Ok(None);
         }

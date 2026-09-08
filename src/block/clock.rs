@@ -6,7 +6,7 @@ impl Clock {
     }
 }
 
-fn render(now: &jiff::civil::DateTime, opts: super::Options) -> String {
+fn render(now: &jiff::civil::DateTime, opts: &super::Options) -> String {
     let fmt = if opts.compact {
         "%m/%d %H:%M"
     } else {
@@ -16,7 +16,7 @@ fn render(now: &jiff::civil::DateTime, opts: super::Options) -> String {
 }
 
 impl super::Block for Clock {
-    fn run(&mut self, opts: super::Options) -> Result<Option<String>, anyhow::Error> {
+    fn run(&mut self, opts: &super::Options) -> Result<Option<String>, anyhow::Error> {
         Ok(Some(render(&jiff::Zoned::now().datetime(), opts)))
     }
 }
@@ -34,7 +34,7 @@ mod tests {
     fn full_keeps_week_number_year_and_meridiem() {
         let now = at("2026-09-05T12:32:00");
         assert_eq!(
-            render(&now, Options::default()),
+            render(&now, &Options::default()),
             "🕛 (KW36) 09/05/2026 12:32 PM"
         );
     }
@@ -42,6 +42,15 @@ mod tests {
     #[test]
     fn compact_drops_week_number_and_year_and_uses_24h() {
         let now = at("2026-09-05T13:32:00");
-        assert_eq!(render(&now, Options { compact: true }), "🕛 09/05 13:32");
+        assert_eq!(
+            render(
+                &now,
+                &Options {
+                    compact: true,
+                    target: None
+                }
+            ),
+            "🕛 09/05 13:32"
+        );
     }
 }

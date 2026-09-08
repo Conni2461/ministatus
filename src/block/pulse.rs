@@ -155,7 +155,7 @@ fn render(s: &SinkState) -> String {
 }
 
 impl super::Block for Pulse {
-    fn run(&mut self, _: super::Options) -> Result<Option<String>, anyhow::Error> {
+    fn run(&mut self, _: &super::Options) -> Result<Option<String>, anyhow::Error> {
         let Ok(state) = self.state.read() else {
             return Ok(None);
         };

@@ -26,7 +26,7 @@ impl News {
 }
 
 impl super::Block for News {
-    fn run(&mut self, _: super::Options) -> Result<Option<String>, anyhow::Error> {
+    fn run(&mut self, _: &super::Options) -> Result<Option<String>, anyhow::Error> {
         if self.update.exists() {
             return Ok(Some("📰 🔃".into()));
         }
