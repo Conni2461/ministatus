@@ -6,7 +6,6 @@ use libpulse_binding::{
     context::{
         Context, FlagSet, State,
         introspect::{Introspector, SinkInfo},
-        subscribe::{Facility, InterestMaskSet, Operation},
     },
     mainloop::threaded::Mainloop,
     proplist::{Proplist, properties},
@@ -74,7 +73,6 @@ impl Pulse {
             state: Arc::new(RwLock::new(SinkState::default())),
         };
         s.connect()?;
-        s.subscribe();
 
         Ok(s)
     }
@@ -110,27 +108,6 @@ impl Pulse {
         self.mainloop.unlock();
         outcome
     }
-
-    fn subscribe(&mut self) {
-        self.mainloop.lock();
-
-        let introspect = self.context.introspect();
-        query_default_sink(&introspect, &self.state);
-
-        let state = self.state.clone();
-        self.context
-            .subscribe(InterestMaskSet::SERVER | InterestMaskSet::SINK, |_| ());
-        self.context
-            .set_subscribe_callback(Some(Box::new(move |fac, op, _| {
-                if op == Some(Operation::Changed)
-                    && matches!(fac, Some(Facility::Server | Facility::Sink))
-                {
-                    query_default_sink(&introspect, &state);
-                }
-            })));
-
-        self.mainloop.unlock();
-    }
 }
 
 impl Drop for Pulse {
@@ -155,7 +132,14 @@ fn render(s: &SinkState) -> String {
 }
 
 impl super::Block for Pulse {
+    // Query on every tick instead of subscribing to changes. PipeWire can answer the first
+    // query after connecting or after a device switch with a stale 100%, and the bar redraws
+    // only once per tick anyway. The text shows the answer to the previous tick's query.
     fn run(&mut self, _: &super::Options) -> Result<Option<String>, anyhow::Error> {
+        self.mainloop.lock();
+        query_default_sink(&self.context.introspect(), &self.state);
+        self.mainloop.unlock();
+
         let Ok(state) = self.state.read() else {
             return Ok(None);
         };
