@@ -17,7 +17,7 @@ fn render(now: &jiff::civil::DateTime, opts: &super::Options) -> String {
 
 impl super::Block for Clock {
     fn run(&mut self, opts: &super::Options) -> Result<Option<String>, anyhow::Error> {
-        Ok(Some(render(&jiff::Zoned::now().datetime(), opts)))
+        Ok(Some(render(&jiff::ZonedDateTime::now().datetime(), opts)))
     }
 }
 
